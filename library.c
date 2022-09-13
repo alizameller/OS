@@ -8,7 +8,7 @@ struct MYSTREAM *myfopen(const char *pathname, int mode, int bufsiz){
     } 
     
     struct MYSTREAM *stream = (struct MYSTREAM*) malloc(sizeof(struct MYSTREAM));
-    char* buffer = (char*) malloc(sizeof(char)*bufsiz);
+    char* buffer = (char*) malloc(sizeof(char) * (bufsiz + 1));
     if (stream == NULL || buffer == NULL){
         errno = ENOMEM;
 
@@ -44,7 +44,7 @@ struct MYSTREAM *myfdopen(int filedesc, int mode, int bufsiz){
     } 
 
     struct MYSTREAM *stream = (struct MYSTREAM*) malloc(sizeof(struct MYSTREAM));
-    char* buffer = (char*) malloc(sizeof(char)*bufsiz);
+    char* buffer = (char*) malloc(sizeof(char)*(bufsiz + 1));
     if (stream == NULL || buffer == NULL){
         errno = ENOMEM;
 
@@ -113,7 +113,7 @@ int myfputc(int c,struct MYSTREAM *stream){
 }
 
 int myfclose(struct MYSTREAM *stream){
-    if(stream->mode == O_RDONLY){ //how do i determine if its rd_only
+    if(stream->mode == O_RDONLY){ 
         int val = close(stream->fd); // will return 0 upon success or -1 upon failure
         stream->buf = stream->head;
         free(stream->buf);
@@ -121,7 +121,7 @@ int myfclose(struct MYSTREAM *stream){
 
         return val;
     }
-    ssize_t size = write(stream->fd, stream->buf, stream->bufsiz);
+    ssize_t size = write(stream->fd, stream->head, stream->buf-stream->head);
 
         if (size <= 0){
             return -1; 
