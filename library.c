@@ -134,3 +134,7 @@ int myfclose(struct MYSTREAM *stream){
 
     return val;
 }
+
+int main(){
+    return 0;
+}
