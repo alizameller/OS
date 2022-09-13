@@ -121,7 +121,7 @@ int myfclose(struct MYSTREAM *stream){
 
         return val;
     }
-    ssize_t size = write(stream->fd, stream->b, stream->bufsiz);
+    ssize_t size = write(stream->fd, stream->buf, stream->bufsiz);
 
         if (size <= 0){
             return -1; 
