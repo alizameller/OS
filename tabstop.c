@@ -13,7 +13,7 @@ void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MY
                 *writeStream = myfopen(optarg, O_WRONLY, 4096);
                 
                 if (*writeStream == NULL){
-                    fprintf(stderr,"Error: could not open %s for writing\n", optarg, strerror(errno));
+                    fprintf(stderr,"Error: could not open %s for writing: %s\n", optarg, strerror(errno));
                     exit(1); 
                 }
                 write = 1; // a write stream is open
@@ -24,7 +24,7 @@ void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MY
         *writeStream = myfdopen(STDOUT_FILENO, O_WRONLY, 4096);
 
         if (*writeStream == NULL){
-            fprintf(stderr,"Error: could not open STDOUT for writing\n", strerror(errno));
+            fprintf(stderr,"Error: could not open STDOUT for writing: %s\n", strerror(errno));
             exit(1); 
         }
     }
@@ -34,7 +34,7 @@ void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MY
         *readStream = myfopen(argv[optind], O_RDONLY, 4096);
         
         if (*readStream == NULL){
-            fprintf(stderr,"Error: could not open %s for reading\n", argv[optind], strerror(errno));
+            fprintf(stderr,"Error: could not open %s for reading: %s\n", argv[optind], strerror(errno));
             exit(1); 
         }
         read = 1; // a read stream is open
@@ -44,7 +44,7 @@ void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MY
         *readStream = myfdopen(STDIN_FILENO, O_RDONLY, 4096);
 
         if (*readStream == NULL){
-            fprintf(stderr,"Error: could not open STDOUT for reading\n", strerror(errno));
+            fprintf(stderr,"Error: could not open STDOUT for reading: %s\n", strerror(errno));
             exit(1); 
         }
     }
@@ -59,13 +59,13 @@ int main(int argc, char** argv){
     int val = 0;
     int check = 0;
 
-    while(val = myfgetc(readStream)) { //!= 0
+    while((val = myfgetc(readStream)) != 0) { 
         if (val == -1) {
             if (readStream->fd == STDIN_FILENO){
-                fprintf(stderr,"Error: could not get char from STDIN\n", strerror(errno));
+                fprintf(stderr,"Error: could not get char from STDIN: %s\n", strerror(errno));
                 exit(1); 
             } 
-            fprintf(stderr,"Error: could not get char from file\n", strerror(errno));
+            fprintf(stderr,"Error: could not get char from file: %s\n", strerror(errno));
             exit(1); 
         }
 
@@ -75,10 +75,10 @@ int main(int argc, char** argv){
 
                 if (check == -1) {
                     if (writeStream->fd == STDOUT_FILENO){
-                        fprintf(stderr,"Error: could not put char to STDOUT\n", strerror(errno));
+                        fprintf(stderr,"Error: could not put char to STDOUT: %s\n", strerror(errno));
                         exit(1); 
                     } 
-                    fprintf(stderr,"Error: could not put char to file\n", strerror(errno));
+                    fprintf(stderr,"Error: could not put char to file: %s\n", strerror(errno));
                     exit(1); 
                 }
             }
@@ -90,10 +90,10 @@ int main(int argc, char** argv){
 
         if (check == -1){
             if (writeStream->fd == STDOUT_FILENO){
-                fprintf(stderr,"Error: could not put char to STDOUT\n", strerror(errno));
+                fprintf(stderr,"Error: could not put char to STDOUT: %s\n", strerror(errno));
                 exit(1); 
             } 
-            fprintf(stderr,"Error: could not put char to file\n", strerror(errno));
+            fprintf(stderr,"Error: could not put char to file: %s\n", strerror(errno));
             exit(1); 
         }
     }
@@ -102,10 +102,10 @@ int main(int argc, char** argv){
 
     if (check == -1){
         if (writeStream->fd == STDOUT_FILENO){
-            fprintf(stderr,"Error: could not close STDOUT\n", strerror(errno));
+            fprintf(stderr,"Error: could not close STDOUT: %s\n", strerror(errno));
             exit(1); 
         } 
-        fprintf(stderr,"Error: could not close file\n", strerror(errno));
+        fprintf(stderr,"Error: could not close file: %s\n", strerror(errno));
         exit(1); 
     }
 
@@ -113,10 +113,10 @@ int main(int argc, char** argv){
 
     if (check == -1){
         if (readStream->fd == STDIN_FILENO){
-            fprintf(stderr,"Error: could not close STDIN\n", strerror(errno));
+            fprintf(stderr,"Error: could not close STDIN: %s\n", strerror(errno));
             exit(1); 
         } 
-        fprintf(stderr,"Error: could not close file\n", strerror(errno));
+        fprintf(stderr,"Error: could not close file: %s\n", strerror(errno));
         exit(1); 
     }
 
