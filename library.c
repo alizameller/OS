@@ -73,14 +73,14 @@ int myfgetc(struct MYSTREAM *stream) {
         stream->tail = stream->head + size;
         stream->buf = stream->head;
 
-        char character = *(stream->buf);
+        char c = *(stream->buf);
         (stream->buf)++;
-        return (int) character;
+        return (int) c;
     }
 
-    char character = *(stream->buf);
+    char c = *(stream->buf);
     (stream->buf)++;
-    return (int) character;
+    return (int) c;
 }
 
 int myfputc(int c,struct MYSTREAM *stream) {

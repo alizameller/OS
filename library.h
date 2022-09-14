@@ -26,10 +26,5 @@ int myfgetc(struct MYSTREAM *stream);
 // insert description
 int myfputc(int c,struct MYSTREAM *stream);
 
-/*
-myfclose: If the stream was opened for reading, myfclose simply calls close on the underlying file descriptor, returning 0 if this 
-succeeds, or -1 if there is an error in close. Any characters that had been in the buffer but were not read with myfgetc are lost. 
-After the close, call free to free the dynamically allocated memory. If the stream was opened for writing, you must first call write 
-to flush the buffer, before you close the file descriptor, and a failure of either write or close must result in returning -1.
-*/
+// insert description
 int myfclose(struct MYSTREAM *stream);

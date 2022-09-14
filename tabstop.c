@@ -1,11 +1,5 @@
 #include "library.c"
 
-// TODO
-// Tab thing
-// myfflush()
-// buffer thing with graphs
-
-
 // Helper function so that all four cases are accounted for
 void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MYSTREAM** readStream){
     int opt;
@@ -55,7 +49,6 @@ void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MY
         fprintf(stderr,"Error: could not open STDOUT for reading\n", strerror(errno));
         exit(1); 
     }
-
 }
 
 int main(int argc, char** argv){
@@ -67,11 +60,14 @@ int main(int argc, char** argv){
     int val = 0;
     int check = 0;
 
-    while((val = myfgetc(readStream)) != 0) { //check man pages for reaching end of file read
+    while((val = myfgetc(readStream)) != 0) { 
      
-        if (val == -1) { // this will never be hit help
-            // OUTPUT FILE?!?!
-            fprintf(stderr,"Error: could not get char %c from STDIN\n", check, strerror(errno));
+        if (val == -1) {
+            if (readStream->fd == STDIN_FILENO){
+                fprintf(stderr,"Error: could not get char from STDIN\n", strerror(errno));
+                exit(1); 
+            } 
+            fprintf(stderr,"Error: could not get char from file\n", strerror(errno));
             exit(1); 
         }
 
@@ -80,8 +76,11 @@ int main(int argc, char** argv){
                 check = myfputc(' ', writeStream);
 
                 if (check == -1) {
-                    // OUTPUT FILE?!?!
-                    fprintf(stderr,"Error: could not put char %c in STDOUT\n", check, strerror(errno));
+                    if (writeStream->fd == STDOUT_FILENO){
+                        fprintf(stderr,"Error: could not write char to STDOUT\n", strerror(errno));
+                        exit(1); 
+                    } 
+                    fprintf(stderr,"Error: could not write char to file\n", strerror(errno));
                     exit(1); 
                 }
             }
@@ -92,22 +91,34 @@ int main(int argc, char** argv){
         check = myfputc(val, writeStream);
 
         if (check == -1){
-        fprintf(stderr,"Error: could not put char %c in STDOUT\n", check, strerror(errno));
-        exit(1); 
+            if (writeStream->fd == STDOUT_FILENO){
+                fprintf(stderr,"Error: could not write char to STDOUT\n", strerror(errno));
+                exit(1); 
+            } 
+            fprintf(stderr,"Error: could not write char to file\n", strerror(errno));
+            exit(1); 
         }
     }
 
     check = myfclose(writeStream);
 
     if (check == -1){
-        fprintf(stderr,"Error: could not close STDOUT\n", strerror(errno));
+        if (writeStream->fd == STDOUT_FILENO){
+            fprintf(stderr,"Error: could not close STDOUT\n", strerror(errno));
+            exit(1); 
+        } 
+        fprintf(stderr,"Error: could not close file\n", strerror(errno));
         exit(1); 
     }
 
     check = myfclose(readStream);
 
     if (check == -1){
-        fprintf(stderr,"Error: could not close STDIN\n", strerror(errno));
+        if (readStream->fd == STDIN_FILENO){
+            fprintf(stderr,"Error: could not close STDIN\n", strerror(errno));
+            exit(1); 
+        } 
+        fprintf(stderr,"Error: could not close file\n", strerror(errno));
         exit(1); 
     }
 
