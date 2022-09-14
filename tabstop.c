@@ -6,8 +6,6 @@
 // buffer thing with graphs
 
 
-
-
 // Helper function so that all four cases are accounted for
 void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MYSTREAM** readStream){
     int opt;
@@ -41,9 +39,18 @@ int main(int argc, char** argv){
 
     set_streams(argc, argv, &writeStream, &readStream);
 
-
     int val;
-    while((val = myfgetc(readStream)) != -1) {
+
+    while((val = myfgetc(readStream)) != -1) { //check man pages for reaching end of file read
+
+        if (val == 9){
+            myfputc(32, writeStream);
+            myfputc(32, writeStream);
+            myfputc(32, writeStream);
+            myfputc(32, writeStream);
+            val = myfgetc(readStream);
+        }
+
         myfputc(val, writeStream);
     }
 
