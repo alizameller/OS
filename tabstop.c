@@ -58,12 +58,11 @@ int main(int argc, char** argv){
 
     int val = 0;
     int check = 0;
-
-
+    int i;
 
     while((val = myfgetc(readStream)) != -1) { 
         if (val == '\t'){
-            for (int i = 0; i < 4; i++){
+            for (i = 0; i < 4; i++){
                 check = myfputc(' ', writeStream);
 
                 if (check == -1) {
