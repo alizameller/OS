@@ -1,51 +1,51 @@
 #include "library.h"
 
-struct MYSTREAM *myfopen(const char *pathname, int mode, int bufsiz){
-    if ((mode != O_RDONLY && mode != O_WRONLY) || bufsiz <= 0){
+struct MYSTREAM *myfopen(const char *pathname, int mode, int bufsiz) {
+    if ((mode != O_RDONLY && mode != O_WRONLY) || bufsiz <= 0) {
         errno = EINVAL;
 
         return NULL;
-    } 
+    }
     
     struct MYSTREAM *stream = (struct MYSTREAM*) malloc(sizeof(struct MYSTREAM));
     char* buffer = (char*) malloc(sizeof(char) * (bufsiz + 1));
-    if (stream == NULL || buffer == NULL){
+    if (stream == NULL || buffer == NULL) {
         errno = ENOMEM;
 
         return NULL;
     }
 
-    if (mode == O_WRONLY){
+    if (mode == O_WRONLY) {
         mode = O_WRONLY | O_CREAT | O_TRUNC;
-    } 
+    }
     int fd = open(pathname, mode, S_IRWXU | S_IRWXG | S_IRWXO);
     
-    if (fd == -1){
+    if (fd == -1) {
         return NULL;
-    } 
+    }
 
     stream->mode = mode;
     stream->fd = fd;
     stream->bufsiz = bufsiz;
     stream->buf = stream->head = stream->tail = buffer;
 
-    return stream; 
+    return stream;
 }
 
-struct MYSTREAM *myfdopen(int filedesc, int mode, int bufsiz){
-    if (filedesc < 0){
+struct MYSTREAM *myfdopen(int filedesc, int mode, int bufsiz) {
+    if (filedesc < 0) {
         return NULL;
-    } 
+    }
 
-    if ((mode != O_RDONLY && mode != O_WRONLY) || bufsiz <= 0){
+    if ((mode != O_RDONLY && mode != O_WRONLY) || bufsiz <= 0) {
         errno = EINVAL;
 
         return NULL;
-    } 
+    }
 
     struct MYSTREAM *stream = (struct MYSTREAM*) malloc(sizeof(struct MYSTREAM));
     char* buffer = (char*) malloc(sizeof(char)*(bufsiz + 1));
-    if (stream == NULL || buffer == NULL){
+    if (stream == NULL || buffer == NULL) {
         errno = ENOMEM;
 
         return NULL;
@@ -56,18 +56,18 @@ struct MYSTREAM *myfdopen(int filedesc, int mode, int bufsiz){
     stream->bufsiz = bufsiz;
     stream->buf = stream->head = stream->tail = buffer;
 
-    return stream; 
+    return stream;
 }
 
 
-int myfgetc(struct MYSTREAM *stream){
+int myfgetc(struct MYSTREAM *stream) {
     if (stream->buf == stream->tail) { //if buffer is empty or full/exhausted
         ssize_t size = read(stream->fd, stream->head, stream->bufsiz);
 
-        if (size == 0){
+        if (size == 0) {
             errno = 0;
             return -1;
-        } else if (size == -1){
+        } else if (size == -1) {
             return -1;
         }
 
@@ -84,57 +84,53 @@ int myfgetc(struct MYSTREAM *stream){
     return (int) character;
 }
 
-int myfputc(int c,struct MYSTREAM *stream){
-    if (stream->buf == stream->tail){  //if buffer is full or empty
-        if (stream->buf != stream->head){ //if buffer is full
+int myfputc(int c,struct MYSTREAM *stream) {
+    if (stream->buf == stream->tail) {  //if buffer is full or empty
+        if (stream->buf != stream->head) { //if buffer is full
             ssize_t size = write(stream->fd, stream->buf, stream->bufsiz);
         
-            if (size <= 0){
-                return -1; 
+            if (size <= 0) {
+                return -1;
             }
             
             stream->buf = stream->head;
             *(stream->buf) = (char) c;
-            (stream->buf)++; 
+            (stream->buf)++;
 
-            return c; 
+            return c;
         } // if buffer is empty
         stream->tail = stream->head + stream->bufsiz;
         *(stream->buf) = (char) c;
-        (stream->buf)++; 
+        (stream->buf)++;
 
-        return c; 
+        return c;
     }
 
     *(stream->buf) = (char) c;
-    (stream->buf)++; 
+    (stream->buf)++;
 
-    return c; 
+    return c;
 }
 
-int myfclose(struct MYSTREAM *stream){
-    if(stream->mode == O_RDONLY){ 
+int myfclose(struct MYSTREAM *stream) {
+    if (stream->mode == O_RDONLY) {
         int val = close(stream->fd); // will return 0 upon success or -1 upon failure
         stream->buf = stream->head;
         free(stream->buf);
-        free(stream); 
+        free(stream);
 
         return val;
     }
     ssize_t size = write(stream->fd, stream->head, stream->buf-stream->head);
 
-        if (size <= 0){
-            return -1; 
-        }
+    if (size <= 0) {
+        return -1;
+    }
 
     int val = close(stream->fd); //will return 0 upon success or -1 upon failure
     stream->buf = stream->head;
     free(stream->buf);
-    free(stream); 
+    free(stream);
 
     return val;
-}
-
-int main(){
-    return 0;
 }
