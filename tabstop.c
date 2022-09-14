@@ -59,16 +59,9 @@ int main(int argc, char** argv){
     int val = 0;
     int check = 0;
 
-    while((val = myfgetc(readStream)) != 0) { 
-        if (val == -1) {
-            if (readStream->fd == STDIN_FILENO){
-                fprintf(stderr,"Error: could not get char from STDIN: %s\n", strerror(errno));
-                exit(1); 
-            } 
-            fprintf(stderr,"Error: could not get char from file: %s\n", strerror(errno));
-            exit(1); 
-        }
 
+
+    while((val = myfgetc(readStream)) != -1) { 
         if (val == '\t'){
             for (int i = 0; i < 4; i++){
                 check = myfputc(' ', writeStream);
@@ -96,6 +89,15 @@ int main(int argc, char** argv){
             fprintf(stderr,"Error: could not put char to file: %s\n", strerror(errno));
             exit(1); 
         }
+    }
+
+    if (errno) {
+        if (readStream->fd == STDIN_FILENO){
+            fprintf(stderr,"Error: could not get char from STDIN: %s\n", strerror(errno));
+            exit(1); 
+        } 
+        fprintf(stderr,"Error: could not get char from file: %s\n", strerror(errno));
+        exit(1); 
     }
 
     check = myfclose(writeStream);
