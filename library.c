@@ -59,7 +59,6 @@ struct MYSTREAM *myfdopen(int filedesc, int mode, int bufsiz) {
     return stream;
 }
 
-
 int myfgetc(struct MYSTREAM *stream) {
     if (stream->buf == stream->tail) { //if buffer is empty or full/exhausted
         ssize_t size = read(stream->fd, stream->head, stream->bufsiz);

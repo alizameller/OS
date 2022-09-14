@@ -9,31 +9,35 @@
 // Helper function so that all four cases are accounted for
 void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MYSTREAM** readStream){
     int opt;
+    int write = 0;
+    int read = 0;
+
     while((opt = getopt(argc, argv, "o:")) != -1) {
-            switch (opt) { 
-                case 'o': 
-                    printf("opening for writing: %s\n", optarg); 
-                    *writeStream = myfopen(optarg, O_WRONLY, 4096);
-                    break;
-
-                default:
-                    *writeStream = myfdopen(STDOUT_FILENO, O_WRONLY, 4096);
-            }
+        switch (opt) { 
+            case 'o': 
+                printf("opening for writing: %s\n", optarg); 
+                *writeStream = myfopen(optarg, O_WRONLY, 4096);
+                write = 1; // a write stream is open
+                break;
         }
+    }
 
-    if (optind == argc){
-        *readStream = myfdopen(STDIN_FILENO, O_RDONLY, 4096);
+    if (!write){ // a write stream is not yet open 
+        *writeStream = myfdopen(STDOUT_FILENO, O_WRONLY, 4096);
     }
 
     for(; optind < argc; optind++){ 
         printf("opening for reading: %s\n", argv[optind]);
         *readStream = myfopen(argv[optind], O_RDONLY, 4096);
+        read = 1; // a read stream is open
     }
 
+    if (!read){ // a read stream is not yet open
+        *readStream = myfdopen(STDIN_FILENO, O_RDONLY, 4096);
+    }
 }
 
 int main(int argc, char** argv){
-    int i; 
     struct MYSTREAM* writeStream;
     struct MYSTREAM* readStream;
 
@@ -43,12 +47,11 @@ int main(int argc, char** argv){
 
     while((val = myfgetc(readStream)) != -1) { //check man pages for reaching end of file read
 
-        if (val == 9){
-            myfputc(32, writeStream);
-            myfputc(32, writeStream);
-            myfputc(32, writeStream);
-            myfputc(32, writeStream);
-            val = myfgetc(readStream);
+        if (val == '\t'){
+            for (int i = 0; i < 4; i++){
+                myfputc(' ', writeStream);
+            }
+            continue;
         }
 
         myfputc(val, writeStream);
