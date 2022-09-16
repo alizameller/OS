@@ -27,4 +27,7 @@ int myfgetc(struct MYSTREAM *stream);
 int myfputc(int c,struct MYSTREAM *stream);
 
 // insert description
+int myfflush (struct MYSTREAM *stream);
+
+// insert description
 int myfclose(struct MYSTREAM *stream);

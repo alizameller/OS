@@ -83,13 +83,12 @@ int myfgetc(struct MYSTREAM *stream) {
     return (int) c;
 }
 
-int myfputc(int c,struct MYSTREAM *stream) {
+int myfputc(int c,struct MYSTREAM *stream) { 
     if (stream->buf == stream->tail) {  //if buffer is full or empty
         if (stream->buf != stream->head) { //if buffer is full
-            ssize_t size = write(stream->fd, stream->buf, stream->bufsiz);
-        
-            if (size <= 0) {
-                return -1;
+
+            if (myfflush(stream) == -1) {
+                return -1; 
             }
             
             stream->buf = stream->head;
@@ -111,6 +110,19 @@ int myfputc(int c,struct MYSTREAM *stream) {
     return c;
 }
 
+int myfflush (struct MYSTREAM *stream){
+    ssize_t size = 0;
+    while (size < stream->bufsiz) {
+        size += write(stream->fd, stream->head + size, stream->bufsiz - size);
+
+        if (size <= 0) {
+            return -1; 
+        }
+    }
+
+    return stream->bufsiz - size; // will return 0 upon success (helps to write it this way for debugging)
+}
+
 int myfclose(struct MYSTREAM *stream) {
     if (stream->mode == O_RDONLY) {
         int val = close(stream->fd); // will return 0 upon success or -1 upon failure
@@ -120,10 +132,11 @@ int myfclose(struct MYSTREAM *stream) {
 
         return val;
     }
-    ssize_t size = write(stream->fd, stream->head, stream->buf-stream->head);
-
-    if (size <= 0 && stream->buf != stream->head) {
-        return -1;
+    
+    stream->bufsiz = stream->buf - stream->head; //we do this to account for a buffer that is partially full
+    
+    if (myfflush(stream) == -1) {
+        return -1; 
     }
 
     int val = close(stream->fd); //will return 0 upon success or -1 upon failure
