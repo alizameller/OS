@@ -37,10 +37,10 @@ void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MY
             exit(1); 
         }
     } else { // opening write stream with pathname
-        *writeStream = myfopen(optarg, O_WRONLY, bufsiz);
+        *writeStream = myfopen(pathname, O_WRONLY, bufsiz);
             
         if (*writeStream == NULL){
-            fprintf(stderr,"Error: could not open %s for writing: %s\n", optarg, strerror(errno));
+            fprintf(stderr,"Error: could not open %s for writing: %s\n", pathname, strerror(errno));
             exit(1); 
         }
     }
