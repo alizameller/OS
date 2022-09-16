@@ -1,37 +1,53 @@
 #include "library.c"
+#include <time.h>
 
 // Helper function so that all four cases are accounted for
 void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MYSTREAM** readStream){
     int opt;
     int write = 0;
     int read = 0;
+    char* pathname;
+    int bufsiz = 4096;
 
-    while((opt = getopt(argc, argv, "o:")) != -1) {
+    while((opt = getopt(argc, argv, "s:o:")) != -1) {
         switch (opt) { 
-            case 'o': 
+            case 's': 
                 //printf("opening for writing: %s\n", optarg); 
-                *writeStream = myfopen(optarg, O_WRONLY, 4096);
-                
-                if (*writeStream == NULL){
-                    fprintf(stderr,"Error: could not open %s for writing: %s\n", optarg, strerror(errno));
+                bufsiz = atoi(optarg);
+
+                if (bufsiz <= 0) {
+                    fprintf(stderr, "Error: buffer size must be greater than 0\n");
                     exit(1); 
                 }
-                write = 1; // a write stream is open
+
+                break;
+
+            case 'o': 
+                pathname = optarg; 
+            
+                write = 1; // a write stream is going to be opened with given pathname  
         }
     }
 
     if (!write){ // a write stream is not yet open 
-        *writeStream = myfdopen(STDOUT_FILENO, O_WRONLY, 4096);
+        *writeStream = myfdopen(STDOUT_FILENO, O_WRONLY, bufsiz);
 
         if (*writeStream == NULL){
             fprintf(stderr,"Error: could not open STDOUT for writing: %s\n", strerror(errno));
+            exit(1); 
+        }
+    } else { // opening write stream with pathname
+        *writeStream = myfopen(optarg, O_WRONLY, bufsiz);
+            
+        if (*writeStream == NULL){
+            fprintf(stderr,"Error: could not open %s for writing: %s\n", optarg, strerror(errno));
             exit(1); 
         }
     }
 
     for(; optind < argc; optind++){ 
         //printf("opening for reading: %s\n", argv[optind]);
-        *readStream = myfopen(argv[optind], O_RDONLY, 4096);
+        *readStream = myfopen(argv[optind], O_RDONLY, bufsiz);
         
         if (*readStream == NULL){
             fprintf(stderr,"Error: could not open %s for reading: %s\n", argv[optind], strerror(errno));
@@ -41,7 +57,7 @@ void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MY
     }
 
     if (!read){ // a read stream is not yet open
-        *readStream = myfdopen(STDIN_FILENO, O_RDONLY, 4096);
+        *readStream = myfdopen(STDIN_FILENO, O_RDONLY, bufsiz);
 
         if (*readStream == NULL){
             fprintf(stderr,"Error: could not open STDOUT for reading: %s\n", strerror(errno));
@@ -51,6 +67,11 @@ void set_streams(int argc, char** argv, struct MYSTREAM** writeStream, struct MY
 }
 
 int main(int argc, char** argv){
+    clock_t start, end;
+    double cpu_time_used;
+
+    start = clock();
+
     struct MYSTREAM* writeStream;
     struct MYSTREAM* readStream;
 
@@ -120,6 +141,10 @@ int main(int argc, char** argv){
         fprintf(stderr,"Error: could not close file: %s\n", strerror(errno));
         exit(1); 
     }
+
+    end = clock();
+    cpu_time_used = ((double) (end-start)) / CLOCKS_PER_SEC; 
+    printf("%f\n", cpu_time_used);
 
     return 0;
 }
