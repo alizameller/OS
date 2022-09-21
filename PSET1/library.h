@@ -30,8 +30,6 @@ int myfputc(int c,struct MYSTREAM *stream);
 int myfflush (struct MYSTREAM *stream);
 
 // insert description
-<<<<<<< HEAD
 int myfclose(struct MYSTREAM *stream);
-=======
+
 int myfclose(struct MYSTREAM *stream);
->>>>>>> 02ebfa0039d49eff85bf6f080dea83eba2a1a78a
