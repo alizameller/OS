@@ -145,4 +145,8 @@ int myfclose(struct MYSTREAM *stream) {
     free(stream);
 
     return val;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 02ebfa0039d49eff85bf6f080dea83eba2a1a78a

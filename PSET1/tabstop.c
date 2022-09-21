@@ -147,4 +147,8 @@ int main(int argc, char** argv){
     printf("%f\n", cpu_time_used);
 
     return 0;
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 02ebfa0039d49eff85bf6f080dea83eba2a1a78a

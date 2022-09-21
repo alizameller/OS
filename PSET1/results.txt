@@ -2,4 +2,8 @@ There is a sharp decrease in run time as the buffer size increases from 1kb to 2
 									
 									
 									
+<<<<<<< HEAD
 									
+=======
+									
+>>>>>>> 02ebfa0039d49eff85bf6f080dea83eba2a1a78a
