@@ -1,9 +1,1 @@
-There is a sharp decrease in run time as the buffer size increases from 1kb to 2kb and then a gradual decrease going forward. This is because there are fewer calls to read() and write() because the buffers can hold more data and do not have to be filled/flushed as frequently. From the graph it is clear that the efficiency of increasing the buffer size has diminishing returns. This is because the time it takes to copy over all the data into and out of the buffer overshadows the effects of decreasing the amount of system calls at which point the run time starts to level off. 									
-									
-									
-									
-<<<<<<< HEAD
-									
-=======
-									
->>>>>>> 02ebfa0039d49eff85bf6f080dea83eba2a1a78a
+There is a sharp decrease in run time as the buffer size increases from 1kb to 2kb and then a gradual decrease going forward. This is because there are fewer calls to read() and write() because the buffers can hold more data and do not have to be filled/flushed as frequently. From the graph it is clear that the efficiency of increasing the buffer size has diminishing returns. This is because the time it takes to copy over all the data into and out of the buffer overshadows the effects of decreasing the amount of system calls at which point the run time starts to level off.
