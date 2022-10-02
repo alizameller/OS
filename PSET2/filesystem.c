@@ -11,6 +11,8 @@
 #include <dirent.h>
 #include <grp.h>
 #include <string.h>
+#include <limits.h>
+
 
 void getArgs(int argc, char** argv, char** starting_path, int* uid, int* allusers, int* seconds) {
     *allusers = 1; //default setting to list inodes owned by anyone
@@ -129,7 +131,8 @@ void printInfo(struct stat *info, char *pathname) {
     printf("%d  ", info->st_nlink);
     printName(info->st_uid, info->st_gid);
     printSize(info->st_mode, info->st_dev, info->st_rdev, info->st_size);
-    char *time = ctime(&(info->st_mtimespec.tv_sec));
+    char time[100];
+    strftime(time, 100, "%b %d %T %Y", localtime(&(info->st_mtimespec.tv_sec)));
     printf("%s %s", time, pathname);
     if ((info->st_mode & 0xF000) == S_IFLNK) {
         char buf[150];
@@ -147,6 +150,8 @@ void walk(char *path, struct stat *info) {
         //error
         return;
     }
+
+    printInfo(info, path);
 
    /* if (shouldPrint(path, info, ...)) {
         printInfo(info, path);
@@ -172,7 +177,6 @@ void walk(char *path, struct stat *info) {
                 newPath[length + i] = entry->d_name[i]; 
             } */
             walk(newPath, info);
-            printInfo(info, newPath);
         }
     }
 }
@@ -181,13 +185,12 @@ int main(int argc, char *argv[]) {
     time_t modTime = time(NULL);
     struct stat info; 
     char* starting_path;
+
     int allusers;
     int uid;
     int seconds;
 
     getArgs(argc, argv, &starting_path, &uid, &allusers, &seconds);
-    //lstat(starting_path, &info); 
-    //printInfo(&info, starting_path); 
     walk(starting_path, &info);
 
 
