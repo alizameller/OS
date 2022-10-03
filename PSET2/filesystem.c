@@ -19,23 +19,25 @@ void getArgs(int argc, char** argv, char** starting_path, int* uid, int* alluser
     *seconds = 0;
     *uid = 0;
     *starting_path = argv[argc - 1];
-    //printf("%s\n", *starting_path); // for debugging purposes
-    char* username;
     int opt;
+    struct passwd *getname;
     while((opt = getopt(argc, argv, "u:m:")) != -1) {
         switch (opt) { 
             case 'u': 
                 *allusers = 0; //change setting to list only inodes owned by user
 
                 if (!(*uid = atoi(optarg))) { //if atoi returns 0 -> optarg = username
-                    *uid = getpwnam(optarg)->pw_uid; 
+                    if (!(getname = getpwnam(optarg))) {
+                        fprintf(stderr, "Error while getting the passwd struct for username %s: %s\n", optarg, strerror(errno));
+                        exit(1);
+                    } else {
+                        *uid = getname->pw_uid;
+                    }
                 }
-                //printf("%d\n", *uid); // for debugging purposes
                 break;
 
             case 'm': 
                 *seconds = abs(atoi(optarg));
-                //printf("%d\n", *seconds); // for debugging purposes
                 break;
         }
     }
@@ -100,16 +102,22 @@ void printName(uid_t st_uid, gid_t st_gid) {
     struct passwd *user;
     struct group *group;
 
-    if (user = getpwuid(st_uid)) {
+    if ((user = getpwuid(st_uid))) {
         username = user->pw_name;
     } else {
-        username = (char *) st_uid; 
+        if (sprintf(username, "%d", st_uid) == -1) {
+            fprintf(stderr, "Error converting User ID, %d, to string: %s\n", st_uid, strerror(errno));
+            exit(1);
+        }
     }
 
-    if (group = getgrgid(st_gid)) {
+    if ((group = getgrgid(st_gid))) {
         groupname = group->gr_name;
     } else {
-        groupname = (char *) st_gid;
+        if (sprintf(groupname, "%d", st_gid) == -1) {
+            fprintf(stderr, "Error converting Group ID, %d, to string: %s\n", st_gid, strerror(errno));
+            exit(1);
+        } 
     }
 
     printf("%s\t%s\t", username, groupname);
@@ -120,51 +128,74 @@ void printSize(mode_t st_mode, dev_t major, dev_t minor, off_t size) {
     if (filetype == S_IFBLK || filetype == S_IFCHR) {
         printf("%d, %d ", major, minor);
     } else {
-        printf("%d ", size);
+        printf("%lld ", size);
     }
 }
 
-// note: combine special and regular
 void printInfo(struct stat *info, char *pathname) {
     printf("%d\t%d ", (int) info->st_ino, (int) info->st_blksize/1024);
     printMode(info->st_mode); 
     printf("%d  ", info->st_nlink);
     printName(info->st_uid, info->st_gid);
     printSize(info->st_mode, info->st_dev, info->st_rdev, info->st_size);
+
     char time[100];
-    strftime(time, 100, "%b %d %T %Y", localtime(&(info->st_mtimespec.tv_sec)));
+    struct tm* currentTime;
+    if (!(currentTime = localtime(&(info->st_mtimespec.tv_sec)))) {
+        fprintf(stderr, "Error finding the current time: %s\n", strerror(errno));
+        exit(1);
+    }
+    if (!strftime(time, 100, "%b %d %T %Y", currentTime)) {
+        fprintf(stderr, "Error formatting the currentTime: %s\n", strerror(errno));
+        exit(1);
+    }
     printf("%s %s", time, pathname);
+
     if ((info->st_mode & 0xF000) == S_IFLNK) {
-        char buf[150];
-        ssize_t bytesRead = readlink(pathname, buf, 150);
+        char buf[256]; // 256 is maximum characters for a pathname
+        ssize_t bytesRead;
+        if ((bytesRead = readlink(pathname, buf, 256)) == -1) {
+            fprintf(stderr, "Error obtaining contents of the symbolic link: %s\n", strerror(errno));
+            exit(1);
+        }
         buf[bytesRead] = '\0';
-        printf("-> %s", buf);
+        printf(" -> %s", buf);
     }
     printf("\n");
 }
 
+int shouldPrint(char* path, struct stat *info, int *uid, int *allusers, int *seconds) {
+    time_t currentTime;
+    if ((currentTime = time(NULL)) == -1) {
+        fprintf(stderr, "Error finding the current time: %s\n", strerror(errno));
+        exit(1);
+    }
+    return (*allusers || info->st_uid == *uid) && currentTime - info->st_mtimespec.tv_sec >= *seconds;
+}
 
 //walks from one node to the next
-void walk(char *path, struct stat *info) {
+void walk(char *path, struct stat *info, int* uid, int* allusers, int* seconds) {
     if (lstat(path, info) == -1) { 
-        //error
-        return;
+        fprintf(stderr, "Error finding the information about file %s: %s\n", path, strerror(errno));
+        exit(1);
     }
 
-    printInfo(info, path);
-
-   /* if (shouldPrint(path, info, ...)) {
+    if (shouldPrint(path, info, uid, allusers, seconds)) { //if the file SHOULD be printed, print info
         printInfo(info, path);
     }
-    */
 
     if((info->st_mode & 0xF000) == S_IFDIR) {
         struct dirent *entry;
         DIR *directory;
-        directory = opendir(path);
-        // check if directory = NULL
+
+        if (!(directory = opendir(path))) { //if directory == NULL
+            fprintf(stderr, "Error opening directory stream corresponding to directory %s: %s\n", path, strerror(errno));
+            exit(1);
+        }
+
         int length = strlen(path);
-        // check if length = -1 (or error of some sort)
+
+        errno = 0;
         while ((entry = readdir(directory)) != NULL) {
             if (*(entry->d_name) == '.' || !strcmp(entry->d_name, "..")) {
                 continue;
@@ -173,16 +204,17 @@ void walk(char *path, struct stat *info) {
             strcpy(newPath, path);
             newPath[length] = '/';
             strcpy(newPath + length + 1, entry->d_name);
-            /* for (int i = 0; i < entry->d_namlen; i++) {
-                newPath[length + i] = entry->d_name[i]; 
-            } */
-            walk(newPath, info);
+            walk(newPath, info, uid, allusers, seconds);
+        }
+
+        if (errno) {
+            fprintf(stderr, "Error reading entries of directory %s: %s\n", path, strerror(errno));
+            exit(1);
         }
     }
 }
 
 int main(int argc, char *argv[]) {
-    time_t modTime = time(NULL);
     struct stat info; 
     char* starting_path;
 
@@ -191,15 +223,7 @@ int main(int argc, char *argv[]) {
     int seconds;
 
     getArgs(argc, argv, &starting_path, &uid, &allusers, &seconds);
-    walk(starting_path, &info);
-
-
-    // To do:
-    // 1. do walking (be able to get through dirs)
-    // 2. write shouldPrint (whether a files info should be omitted or printed)
-    // 3. error-handling/error-checking
-    // 4. cleaning up
-    // 5. extra credit! :) :)))))
+    walk(starting_path, &info, &uid, &allusers, &seconds);
 
     return 0;
 }
