@@ -10,6 +10,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 void redirIO(char **args) {
 
@@ -147,11 +148,16 @@ void driver(FILE *stream) {
     return;
 }
 
-int main() {
+int main(int argc, char **argv) {
     FILE *stream;
     char *inFileName;
     char *outFileName;
-    // check for IO redirection and set stream
+    char *pathname;
+    int fd;
+
+    if (pathname = argv[1] != NULL) {
+        stream = fopen(pathname, 'r');
+    }
         //set file names
     // else if not shell script
         //inFileName = "STDIN"; 
