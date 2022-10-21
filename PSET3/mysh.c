@@ -16,7 +16,17 @@ void redirIO(char **args) {
 }
 
 void shelliza_cd(char **args) {
-
+    char *path; 
+    if (args[1] == NULL) {
+        char *envvar = "HOME";
+        if (!(path = getenv(envvar))){
+            fprintf(stderr, "The environment variable %s was not found.\n", envvar);
+            exit(1);
+        }
+    } else {
+        path = args[1];
+    }
+    // relative or full path?
 }
 
 void shelliza_pwd(char **args) {
@@ -24,71 +34,59 @@ void shelliza_pwd(char **args) {
 }
 
 void shelliza_exit(char **args) {
-    
+
 }
 
+// Using an array of structs to map the command name to its respective function 
 struct functionMap {
     char *name;
     void (*func)(char **args);
 };
-
+// Initialization
 struct functionMap functions[] = {
     {"cd", shelliza_cd},
     {"pwd", shelliza_pwd}, 
     {"exit", shelliza_exit}
 };
 
-char* readLine(FILE *stream) {
-    char *buffer; 
-    size_t bufsize = 0; // how big should I make this
-    buffer = (char *)malloc(bufsize * sizeof(char));
+char** tokenization(char *line) {
+    int i;
+    char *str1;
+    char **string = (char **)malloc(2000 * sizeof(char*)); //limit for number of commands
 
-    if(buffer == NULL) {
-        perror("Unable to allocate buffer");
+    if(string == NULL) {
+        fprintf(stderr, "Error while allocating space for the buffer: %s\n", strerror(errno));
         exit(1);
     }
 
-    getline(&buffer, &bufsize, stdin);
-    // if first character in line is #, ignore the line
-
-    return buffer; 
-}
-
-char** tokenization(char *line) {
-    int i = 0;
-    char **string = (char **)malloc(strlen(line) * sizeof(char));
-
-    char *token = strtok(line, " "); 
-    while(token != NULL) {
-        string[i++] = token;
-        token = strtok(NULL, " ");
+    for (i = 0, str1 = line; ; i++, str1 = NULL) {
+        string[i] = strtok(str1, " \t");
+        if (!string[i]) {
+            break;
+        }
     }
-
-    string[strlen(line)] = NULL;
-    /*for (i = 0; i < strlen(line); ++i) 
-        printf("%s\n", string[i]); */
 
     return string; 
 }
 
 void shelliza_exec(char **args) {
-    int i;
+/*    int i;
     int numFuncs = 3; 
     int wstatus; 
     //split args into commands and IO redirection
     pid_t childPid = fork();
 
-    if (childPid == 0) { //inside child process
-        // do IO redirection
+    if (childPid == 0) { // inside child process
+        // do IO redirection ?
         redirIO(args); 
         // execute commands
         for (i = 0; i < numFuncs; i++)
             // execute respective commands inside child process
             if (!strcmp(args[0], functions[i].name)) { //if the command matches a command in the functions map (struct)
-                functions[i].func(args); //call the respective functions
+                functions[i].func(args); //call the respective function
             }
         exit(1); 
-    } else if (childPid > 0) {
+    } else if (childPid > 0) { // parent process
         do {
             if (wait(&wstatus) == -1) {
                 //error
@@ -102,27 +100,65 @@ void shelliza_exec(char **args) {
             }
 
         } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
-            exit(0);
-    }
+            exit(0);    
+    } */
 }
 
-void driver() {
-    printf("[shelliza:~]$ ");
-    // if not a shell script
-    char *line = readLine(stdin);
-    char **tokens = tokenization(line);
-    // tokens[0, 1] = command + arguments ?
-    // tokens[2, 3] = redirection operations ?
-    if (tokens[0] != NULL) {
+void driver(FILE *stream) {  
+    int i;
+    char *buffer; 
+    size_t bufsize = 500; // just a random number 
+    buffer = (char *)malloc((bufsize + 1) * sizeof(char));
+
+    if(buffer == NULL) {
+        fprintf(stderr, "Error while allocating space for the buffer: %s\n", strerror(errno));
+        exit(1);
+    }
+
+    while (1) {
+        printf("[shelliza:~]$ ");
+        if (getline(&buffer, &bufsize, stream) == -1) {
+            break;
+        }
+        char **tokens = tokenization(buffer);
+        // tokens[0, 1] = command + arguments ?
+        // tokens[2, 3] = redirection operations ?
+        if (*tokens[0] == '#') {
+            continue; 
+        }
+
+        for (i = 0; tokens[i]; i++) {
+            printf("%s\n", tokens[i]);
+        }
+
+        if (tokens[0] != NULL) {
             shelliza_exec(tokens);
         }
-    free(line); 
-    free(tokens); 
+
+        free(tokens); 
+    }
+
+    if (errno) {
+        fprintf(stderr, "Error while reading line from %s: %s\n", "INSERT FILENAME", strerror(errno));
+        exit(1);
+    }
+
+    free(buffer); 
     return;
 }
 
 int main() {
-    driver(); 
+    FILE *stream;
+    char *inFileName;
+    char *outFileName;
+    // check for IO redirection and set stream
+        //set file names
+    // else if not shell script
+        //inFileName = "STDIN"; 
+        //outFileName = "STDOUT"; 
+        stream = stdin; 
+    
+    driver(stream); 
 
     return 0;
 }
