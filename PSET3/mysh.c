@@ -13,16 +13,25 @@
 #include <fcntl.h>
 
 void redirIO(char **args) {
-
+    int i;
+    int j;
+    // finding index at which redirection occurs
+    for (i = 0; args[i]; i++) {
+        for (j = 0; j < strlen(args[i]); j++) {
+            if ((args[i])[j] == '<' || (args[i])[j] == '>') {
+                printf("%s\n", args[i]); //error checking
+            }
+        }
+    }
 }
 
-void shelliza_cd(char **args) {
+int shelliza_cd(char **args) {
     char *path;
     if (args[1] == NULL) {
         char *envvar = "HOME";
         if (!(path = getenv(envvar))){
             fprintf(stderr, "The environment variable %s was not found.\n", envvar);
-            exit(1);
+            return 2; 
         }
     } else {
         path = args[1];
@@ -30,21 +39,25 @@ void shelliza_cd(char **args) {
 
     if (chdir(path) == -1) {
         fprintf(stderr, "Could not change directory to path %s: %s\n", path, strerror(errno));
-        exit(1);
+        return 1; 
     }
+
+    return 0; 
 }
 
-void shelliza_pwd(char **args) {
+int shelliza_pwd(char **args) {
     char *string;
     if (!(string = getcwd(NULL, 0))) {
         fprintf(stderr, "Could not get current working directory: %s\n", strerror(errno));
-        exit(1);
+        return 1;
     }
     printf("%s\n", string);
     free(string);
+
+    return 0; 
 }
 
-void shelliza_exit(char **args) {
+int shelliza_exit(char **args) {
     int status;
     if (args[1] == NULL || args[0] == NULL) {
         status = 0; //change this to exit status of last command
@@ -57,7 +70,7 @@ void shelliza_exit(char **args) {
 // Using an array of structs to map the command name to its respective function 
 struct functionMap {
     char *name;
-    void (*func)(char **args);
+    int (*func)(char **args);
 };
 // Initialization
 struct functionMap functions[] = {
@@ -73,7 +86,7 @@ char** tokenization(char *line) {
 
     if(string == NULL) {
         fprintf(stderr, "Error while allocating space for the buffer: %s\n", strerror(errno));
-        exit(1);
+        exit(1); 
     }
 
     for (i = 0, str1 = line; ; i++, str1 = NULL) {
@@ -89,6 +102,9 @@ char** tokenization(char *line) {
 void shelliza_exec(char **args) {
     int i;
     int wstatus; 
+    struct rusage rusage;
+    clock_t realTime; 
+    realTime = clock();
     pid_t childPid = fork();
 
     if (childPid == 0) { // inside child process
@@ -97,21 +113,30 @@ void shelliza_exec(char **args) {
         exit(1);
     } else if (childPid > 0) { // parent process
         do {
-            if (wait(&wstatus) == -1) {
-                //error
-                exit(1);
+            if (wait3(&wstatus, 0, &rusage) == -1) {
+                //error 
+                exit(wstatus);
             }
 
-            if (WIFEXITED(wstatus)) {
-                wstatus >> 8; 
-                //fprintf(stderr, "exited, status=%d\n", wstatus);
-            } else if (WIFSIGNALED(wstatus)) {
+            if (WIFEXITED(wstatus)) { //WIFEXITED -> did proc exit normally (vs. signal termination)
+                wstatus >> 8;
+                if (wstatus == 0) {
+                    printf("Child Process %d exited normally\n", childPid); 
+                } else {
+                    printf("Child Process %d exited with return value %d\n", childPid, wstatus);
+                }
+            } else if (WIFSIGNALED(wstatus)) { //WIFSIGNALED -> did proc exit successfully (exit code = 0)
                 wstatus & 0x00FF; 
-                //fprintf(stderr, "killed by signal %d\n", wstatus);
+                printf("Child Process %d exited with signal %d\n", childPid, wstatus);
             }
+        } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus)); 
+            realTime = clock() - realTime; 
+            getrusage(RUSAGE_CHILDREN, &rusage); 
 
-        } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
-            return;    
+            printf("Real: %fs ", ((double)realTime)/CLOCKS_PER_SEC);
+            printf("User: %ld.%06ds ", rusage.ru_utime.tv_sec, rusage.ru_utime.tv_usec);
+            printf("System: %ld.%06ds\n", rusage.ru_stime.tv_sec, rusage.ru_stime.tv_usec); 
+            return;   
         }
 }
 
@@ -128,9 +153,7 @@ void shelliza_builtin(char **args) {
     shelliza_exec(args); // if function is not a built-in function, call exec
 }
 
-void driver(FILE *stream) {  
-    int i;
-    int j;
+void driver(FILE *stream, char *inFileName, char *outFileName) {  
     char **execArgs; 
     char *buffer; 
     size_t bufsize = 500; // just a random number 
@@ -154,15 +177,8 @@ void driver(FILE *stream) {
         if (*tokens[0] == '#') {
             continue; 
         }
-        // finding index at which redirection occurs
-       /* for (i = 0; tokens[i]; i++) {
-            for (j = 0; j < strlen(tokens[i]); j++) {
-                if ((tokens[i])[j] == '<' || (tokens[i])[j] == '>' || (tokens[i])[j] == '2') {
-                    // IO REDIRECTION
-                    memcpy(execArgs, tokens, i);
-                }
-            }
-        } */
+
+        redirIO(tokens); 
 
         if (tokens[0] != NULL) {
             shelliza_builtin(tokens);
@@ -172,7 +188,7 @@ void driver(FILE *stream) {
     }
 
     if (errno) {
-        fprintf(stderr, "Error while reading line from %s: %s\n", "INSERT FILENAME", strerror(errno));
+        fprintf(stderr, "Error while reading line from %s: %s\n", inFileName, strerror(errno));
         exit(1);
     }
 
@@ -189,14 +205,15 @@ int main(int argc, char **argv) {
 
     // if shell script
     if ((pathname = argv[1]) != NULL) {
+        inFileName = pathname;
         stream = fopen(pathname, "r");
-    } else { // else if not shell script
-        //inFileName = "STDIN"; 
-        //outFileName = "STDOUT"; 
+    } else { // else if not shell script and no IO redirection
+        inFileName = "STDIN"; 
+        outFileName = "STDOUT"; 
         stream = stdin; 
     }
 
-    driver(stream); 
+    driver(stream, inFileName, outFileName); 
 
     return 0;
 }
