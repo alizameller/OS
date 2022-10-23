@@ -27,6 +27,7 @@ void shelliza_cd(char **args) {
     } else {
         path = args[1];
     }
+
     if (chdir(path) == -1) {
         fprintf(stderr, "Could not change directory to path %s: %s\n", path, strerror(errno));
         exit(1);
@@ -86,14 +87,14 @@ char** tokenization(char *line) {
 }
 
 void shelliza_exec(char **args) {
-/*  int wstatus; 
-    //split args into commands and IO redirection
+    int i;
+    int wstatus; 
     pid_t childPid = fork();
 
     if (childPid == 0) { // inside child process
-        // do IO redirection ?
-        redirIO(args); 
-        // execute commands
+        execvp(args[0], args);
+        fprintf(stderr, "Error while executing command %s: %s\n", args[0], strerror(errno));
+        exit(1);
     } else if (childPid > 0) { // parent process
         do {
             if (wait(&wstatus) == -1) {
@@ -102,28 +103,35 @@ void shelliza_exec(char **args) {
             }
 
             if (WIFEXITED(wstatus)) {
-                printf("exited, status=%d\n", wstatus >> 8);
+                wstatus >> 8; 
+                //fprintf(stderr, "exited, status=%d\n", wstatus);
             } else if (WIFSIGNALED(wstatus)) {
-                printf("killed by signal %d\n", wstatus & 0x00FF);
+                wstatus & 0x00FF; 
+                //fprintf(stderr, "killed by signal %d\n", wstatus);
             }
 
         } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus));
-            exit(0);    
-    } */
+            return;    
+        }
 }
 
 void shelliza_builtin(char **args) {
     int i; 
-    int numFuncs = 3; 
-    for (i = 0; i < numFuncs; i++) {
+    int builtin = 0;
+    for (i = 0; i < 3; i++) {
         if (!strcmp(args[0], functions[i].name)) { //if the command matches a command in the functions map (struct)
+            builtin = 1; 
             functions[i].func(args); //call the respective function
+            return;
         }
     }
+    shelliza_exec(args); // if function is not a built-in function, call exec
 }
 
 void driver(FILE *stream) {  
     int i;
+    int j;
+    char **execArgs; 
     char *buffer; 
     size_t bufsize = 500; // just a random number 
     buffer = (char *)malloc((bufsize + 1) * sizeof(char));
@@ -146,14 +154,18 @@ void driver(FILE *stream) {
         if (*tokens[0] == '#') {
             continue; 
         }
-        /*
-        for (i = 0; tokens[i]; i++) {
-            printf("%s\n", tokens[i]);
-        }
-        */
+        // finding index at which redirection occurs
+       /* for (i = 0; tokens[i]; i++) {
+            for (j = 0; j < strlen(tokens[i]); j++) {
+                if ((tokens[i])[j] == '<' || (tokens[i])[j] == '>' || (tokens[i])[j] == '2') {
+                    // IO REDIRECTION
+                    memcpy(execArgs, tokens, i);
+                }
+            }
+        } */
+
         if (tokens[0] != NULL) {
             shelliza_builtin(tokens);
-            //shelliza_exec(tokens);
         }
 
         free(tokens); 
