@@ -12,17 +12,59 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-void redirIO(char **args) {
-    int i;
-    int j;
-    // finding index at which redirection occurs
-    for (i = 0; args[i]; i++) {
-        for (j = 0; j < strlen(args[i]); j++) {
-            if ((args[i])[j] == '<' || (args[i])[j] == '>') {
-                printf("%s\n", args[i]); //error checking
+// stderrr  stdout  stdin
+//    1       1       1    = 7 = stdin, stdout, stderr is redirected
+//    0       1       1    = 3 = stdin, stdout is redirected
+//    0       0       0    = 0 = none are redirected
+
+int redirIO(char *args, int redirs) {
+    //printf("%s: ", args);
+    switch(args[0]) {
+        case '<':
+            if (redirs & 0x1) { //stdin was already redirected
+                printf("stdin was already redirected\n");
+                break; 
             }
-        }
+            if ((args[1]) >= 1 && ((args[1]) <= 127)) {
+                // Open filename and redirect stdin
+            }
+            redirs++; 
+            //printf("%d\n", redirs); 
+            // error
+            break;
+        
+        case '>':
+            if (redirs & 0x2) { //stdout was already redirected
+                printf("stdout was already redirected\n");
+                break;
+            }
+            if ((args[1]) == '>') {
+                // Open/Create/Append filename and redirect stdout
+            } else if ((args[1]) >= 1 && ((args[1]) <= 127)) {
+                //Open/Create/Truncate filename and redirect stdout
+            }
+            redirs = redirs + 2; 
+            //printf("%d\n", redirs); 
+            //error
+            break;
+
+        case '2':
+            if (redirs & 0x4) { //stderr was already redirected
+                printf("stderr was already redirected\n");
+                break;
+            }
+            if ((args[1]) == '>' && ((args[2]) == '>')) {
+                // Open/Create/Append filename and redirect stderr
+            } else if ((args[1]) == '>' && ((args[2]) >= 1 && ((args[2]) <= 127))) {
+                // Open/Create/Truncate filename and redirect stderr
+            }
+            redirs = redirs + 4; 
+            //printf("%d\n", redirs); 
+            //error
+            break;
     }
+    //printf("%d\n", redirs); 
+    return redirs; 
 }
 
 int shelliza_cd(char **args) {
@@ -171,14 +213,27 @@ void driver(FILE *stream, char *inFileName, char *outFileName) {
         if (getline(&buffer, &bufsize, stream) == -1) {
             break;
         }
+
         char **tokens = tokenization(buffer);
-        // tokens[0, 1] = command + arguments ?
-        // tokens[2, 3] = redirection operations ?
         if (*tokens[0] == '#') {
             continue; 
         }
 
-        redirIO(tokens); 
+        // iterate through the strings in tokens
+            // count number of '<' + number of '>' + number of '2>' + number of '>>' + number of '2>>'
+        int i;
+        int j; 
+        int length;
+        int redir = 0;
+        for (i = 0; tokens[i]; i++) {
+            length = strlen(tokens[i]);
+            for (j = 0; j < length; j++) {
+                if (tokens[i][j] == '>' || tokens[i][j] == '<') {
+                    redir = redirIO(tokens[i], redir); 
+                    j = length; 
+                }
+            }
+        }
 
         if (tokens[0] != NULL) {
             shelliza_builtin(tokens);
