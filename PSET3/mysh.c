@@ -12,68 +12,83 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-// stderrr  stdout  stdin
-//    1       1       1    = 7 = stdin, stdout, stderr is redirected
-//    0       1       1    = 3 = stdin, stdout is redirected
-//    0       0       0    = 0 = none are redirected
+struct info {
+    char *redirIn;
+    char *redirOut;
+    char *redirErr;
+    int flags[2]; // array to keep track of flags. char[0] -> stdout, char[1] -> stderr
+    int redirs; // redirs is a 3 bit number that represents which streams were redirected
+    // Example: 
+    // stderrr  stdout  stdin
+    //    1       1       1    = 7 -> stdin, stdout, stderr is redirected
+    //    0       1       1    = 3 -> stdin, stdout is redirected
+    //    0       0       0    = 0 -> none are redirected 
+};
 
-int redirIO(char *args, int redirs) {
-    //printf("%s: ", args);
+struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
+    char *temp = args;
+    char *filename = strtok(temp, "<>2");
+    //printf("%s\n", filename); 
     switch(args[0]) {
         case '<':
-            if (redirs & 0x1) { //stdin was already redirected
+            if (redirInfo->redirs & 0x1) { //stdin was already redirected
                 printf("stdin was already redirected\n");
                 break; 
             }
-            if ((args[1]) >= 1 && ((args[1]) <= 127)) {
-                // Open filename and redirect stdin
-            }
-            redirs++; 
-            //printf("%d\n", redirs); 
-            // error
+            // Redirect stdin
+            redirInfo->redirIn = strdup(filename);
+            //printf("%s\n", redirInfo->redirIn); 
+            redirInfo->redirs++; 
+            //error
             break;
         
         case '>':
-            if (redirs & 0x2) { //stdout was already redirected
+            if (redirInfo->redirs & 0x2) { //stdout was already redirected
                 printf("stdout was already redirected\n");
                 break;
             }
+            redirInfo->redirOut = strdup(filename);
             if ((args[1]) == '>') {
-                // Open/Create/Append filename and redirect stdout
-            } else if ((args[1]) >= 1 && ((args[1]) <= 127)) {
-                //Open/Create/Truncate filename and redirect stdout
+                // Append
+                redirInfo->flags[0] = O_APPEND; 
+            } else {
+                // Truncate 
+                redirInfo->flags[0] = O_TRUNC; 
             }
-            redirs = redirs + 2; 
+            redirInfo->redirs = redirInfo->redirs + 2; 
             //printf("%d\n", redirs); 
             //error
             break;
 
         case '2':
-            if (redirs & 0x4) { //stderr was already redirected
+            if (redirInfo->redirs & 0x4) { //stderr was already redirected
                 printf("stderr was already redirected\n");
                 break;
             }
+            redirInfo->redirErr = strdup(filename);
             if ((args[1]) == '>' && ((args[2]) == '>')) {
-                // Open/Create/Append filename and redirect stderr
+                // Append
+                redirInfo->flags[0] = O_APPEND; 
             } else if ((args[1]) == '>' && ((args[2]) >= 1 && ((args[2]) <= 127))) {
-                // Open/Create/Truncate filename and redirect stderr
+                // Truncate
+                redirInfo->flags[0] = O_TRUNC; 
             }
-            redirs = redirs + 4; 
+            redirInfo->redirs = redirInfo->redirs + 4; 
             //printf("%d\n", redirs); 
             //error
             break;
     }
     //printf("%d\n", redirs); 
-    return redirs; 
+    return redirInfo; 
 }
 
-int shelliza_cd(char **args) {
+int shelliza_cd(char **args, int *status) {
     char *path;
     if (args[1] == NULL) {
         char *envvar = "HOME";
         if (!(path = getenv(envvar))){
             fprintf(stderr, "The environment variable %s was not found.\n", envvar);
-            return 2; 
+            return errno; 
         }
     } else {
         path = args[1];
@@ -81,38 +96,33 @@ int shelliza_cd(char **args) {
 
     if (chdir(path) == -1) {
         fprintf(stderr, "Could not change directory to path %s: %s\n", path, strerror(errno));
-        return 1; 
     }
 
-    return 0; 
+    return errno; 
 }
 
-int shelliza_pwd(char **args) {
+int shelliza_pwd(char **args, int *status) {
     char *string;
     if (!(string = getcwd(NULL, 0))) {
         fprintf(stderr, "Could not get current working directory: %s\n", strerror(errno));
-        return 1;
+        return errno; 
     }
     printf("%s\n", string);
-    free(string);
 
-    return 0; 
+    return errno; 
 }
 
-int shelliza_exit(char **args) {
-    int status;
-    if (args[1] == NULL || args[0] == NULL) {
-        status = 0; //change this to exit status of last command
-    } else {
-        status = atoi(args[1]);
+int shelliza_exit(char **args, int *status) {
+    if (args[1]) {
+        *status = atoi(args[1]);
     }
-    exit(status);
+    exit(*status);
 }
 
 // Using an array of structs to map the command name to its respective function 
 struct functionMap {
     char *name;
-    int (*func)(char **args);
+    int (*func)(char **args, int *status);
 };
 // Initialization
 struct functionMap functions[] = {
@@ -132,16 +142,20 @@ char** tokenization(char *line) {
     }
 
     for (i = 0, str1 = line; ; i++, str1 = NULL) {
-        string[i] = strtok(str1, " \t\n");
+        string[i] = strtok(str1, " \t\n"); 
         if (!string[i]) {
             break;
+        }
+        if (i == 1999) { // last valid index and string[i] is not NULL
+            fprintf(stderr, "Error executing command. Too many tokens\n");
+            *string[0] = '#'; // overwrite string so that when tokenization returns, the driver function continues to the next command
         }
     }
 
     return string; 
 }
 
-void shelliza_exec(char **args) {
+void shelliza_exec(char **args, int *status) {
     int i;
     int wstatus; 
     struct rusage rusage;
@@ -156,19 +170,22 @@ void shelliza_exec(char **args) {
     } else if (childPid > 0) { // parent process
         do {
             if (wait3(&wstatus, 0, &rusage) == -1) {
-                //error 
-                exit(wstatus);
+                fprintf(stderr, "Error waiting for child process %d: %s\n", childPid, strerror(errno));
+                *status = errno; 
+                return; 
             }
 
             if (WIFEXITED(wstatus)) { //WIFEXITED -> did proc exit normally (vs. signal termination)
-                wstatus >> 8;
+                wstatus >>= 8;
+                *status = wstatus; 
                 if (wstatus == 0) {
                     printf("Child Process %d exited normally\n", childPid); 
                 } else {
                     printf("Child Process %d exited with return value %d\n", childPid, wstatus);
                 }
             } else if (WIFSIGNALED(wstatus)) { //WIFSIGNALED -> did proc exit successfully (exit code = 0)
-                wstatus & 0x00FF; 
+                wstatus &= 0x00FF; 
+                *status = wstatus; 
                 printf("Child Process %d exited with signal %d\n", childPid, wstatus);
             }
         } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus)); 
@@ -182,22 +199,24 @@ void shelliza_exec(char **args) {
         }
 }
 
-void shelliza_builtin(char **args) {
+void shelliza_builtin(char **args, int *status) {
     int i; 
-    int builtin = 0;
     for (i = 0; i < 3; i++) {
         if (!strcmp(args[0], functions[i].name)) { //if the command matches a command in the functions map (struct)
-            builtin = 1; 
-            functions[i].func(args); //call the respective function
+            *status = functions[i].func(args, status); //call the respective built in function and set the exit status
             return;
         }
     }
-    shelliza_exec(args); // if function is not a built-in function, call exec
+    shelliza_exec(args, status); // if function is not a built-in function, call exec
 }
 
-void driver(FILE *stream, char *inFileName, char *outFileName) {  
+void driver(FILE *stream, char *inFileName) {  
     char **execArgs; 
     char *buffer; 
+    int status = 0;
+
+    struct info *redirInfo = malloc(sizeof *redirInfo);
+
     size_t bufsize = 500; // just a random number 
     buffer = (char *)malloc((bufsize + 1) * sizeof(char));
 
@@ -215,7 +234,8 @@ void driver(FILE *stream, char *inFileName, char *outFileName) {
         }
 
         char **tokens = tokenization(buffer);
-        if (*tokens[0] == '#') {
+        if ((tokens[0] == NULL) || (*tokens[0] == '#')) {
+            free(tokens); 
             continue; 
         }
 
@@ -224,20 +244,18 @@ void driver(FILE *stream, char *inFileName, char *outFileName) {
         int i;
         int j; 
         int length;
-        int redir = 0;
         for (i = 0; tokens[i]; i++) {
             length = strlen(tokens[i]);
             for (j = 0; j < length; j++) {
                 if (tokens[i][j] == '>' || tokens[i][j] == '<') {
-                    redir = redirIO(tokens[i], redir); 
+                    redirInfo = redirIO(tokens[i], redirInfo->redirs, redirInfo); 
                     j = length; 
                 }
             }
         }
+        // redirInfo is returned, need to open the files slash set streams accordingly (in exec?)
 
-        if (tokens[0] != NULL) {
-            shelliza_builtin(tokens);
-        }
+        shelliza_builtin(tokens, &status);
 
         free(tokens); 
     }
@@ -254,7 +272,6 @@ void driver(FILE *stream, char *inFileName, char *outFileName) {
 int main(int argc, char **argv) {
     FILE *stream;
     char *inFileName;
-    char *outFileName;
     char *pathname;
     int fd;
 
@@ -262,13 +279,12 @@ int main(int argc, char **argv) {
     if ((pathname = argv[1]) != NULL) {
         inFileName = pathname;
         stream = fopen(pathname, "r");
-    } else { // else if not shell script and no IO redirection
+    } else { // else if not shell script 
         inFileName = "STDIN"; 
-        outFileName = "STDOUT"; 
         stream = stdin; 
     }
 
-    driver(stream, inFileName, outFileName); 
+    driver(stream, inFileName); 
 
     return 0;
 }
