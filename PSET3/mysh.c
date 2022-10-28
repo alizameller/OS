@@ -12,10 +12,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-// im getting a seg fault when i run it
 struct info {
-    char **redirFiles; //redirFiles[0] = in, redirFiles[1] = out, redirFiles[2] = err
-    char **flags; // array to keep track of flags. flags[0] -> stdout, flags[1] -> stderr
+    char *redirFiles[3]; //redirFiles[0] = in, redirFiles[1] = out, redirFiles[2] = err
+    char *flags[3]; // array to keep track of flags. flags[0] -> stdin, flags[1] -> stdout, flags[2] -> stderr
     int redirs; // redirs is a 3 bit number that represents which streams were redirected
     // Example: 
     // stderrr  stdout  stdin
@@ -36,6 +35,7 @@ struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
             }
             // Redirect stdin
             redirInfo->redirFiles[0] = strdup(filename);
+            redirInfo->flags[0] = strdup("r");
             //printf("%s\n", redirInfo->redirIn); 
             redirInfo->redirs++; 
             //error
@@ -49,10 +49,10 @@ struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
             redirInfo->redirFiles[1] = strdup(filename);
             if ((args[1]) == '>') {
                 // Append
-                redirInfo->flags[0] = "a"; 
+                redirInfo->flags[1] = strdup("a"); 
             } else {
                 // Truncate 
-                redirInfo->flags[0] = "w"; 
+                redirInfo->flags[1] = strdup("w"); 
             }
             redirInfo->redirs = redirInfo->redirs + 2; 
             //printf("%d\n", redirs); 
@@ -67,10 +67,10 @@ struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
             redirInfo->redirFiles[2] = strdup(filename);
             if ((args[1]) == '>' && ((args[2]) == '>')) {
                 // Append
-                redirInfo->flags[0] = "a"; 
+                redirInfo->flags[2] = strdup("a"); 
             } else if ((args[1]) == '>' && ((args[2]) >= 1 && ((args[2]) <= 127))) {
                 // Truncate
-                redirInfo->flags[0] = "w"; 
+                redirInfo->flags[2] = strdup("w"); 
             }
             redirInfo->redirs = redirInfo->redirs + 4; 
             //printf("%d\n", redirs); 
@@ -170,6 +170,7 @@ void shelliza_exec(char **args, int *status, struct info *redirInfo) {
     if (childPid == 0) { // inside child process
         for (i = 0; i < 3; i++) {
             if (redirInfo->redirs & j) { 
+                printf("%s %s\n", redirInfo->redirFiles[i], redirInfo->flags[i]); 
                 if ((streams[i] = fopen(redirInfo->redirFiles[i], redirInfo->flags[i]))) {
                     fprintf(stderr, "Error while opening file %s for reading: %s\n", redirInfo->redirFiles[i], strerror(errno));
                     exit(1);  
@@ -178,36 +179,10 @@ void shelliza_exec(char **args, int *status, struct info *redirInfo) {
                     fprintf(stderr, "Error while obtaining file descriptor for file %s: %s\n", redirInfo->redirFiles[i], strerror(errno));
                     exit(1);
                 }
+                close(fileno(streams[i])); // closing the file descriptor to keep a clean file descriptor environment
             }
-            j >> 1; // left shift j to perform the next masking
-        }/*
-         // changing stdin stream
-        if (redirInfo->redirIn) {
-            if ((inStream = fopen(redirInfo->redirIn, "r"))) {
-                fprintf(stderr, "Error while opening file %s for reading: %s\n", redirInfo->redirIn, strerror(errno));
-                exit(1); 
-            }
-            if (dup2(fileno(inStream), STDIN_FILENO)) {
-                fprintf(stderr, "Error while obtaining file descriptor for file %s: %s\n", redirInfo->redirIn, strerror(errno));
-                exit(1);
-            }
+            j = j << 1; // left shift j to perform the next masking
         }
-
-        // changing stdout stream
-        if (redirInfo->redirOut) {
-            if ((outStream = fopen(redirInfo->redirOut, redirInfo->flags[0]))) {
-                fprintf(stderr, "Error while opening file %s with flag %s: %s\n", redirInfo->redirIn, redirInfo->flags[0], strerror(errno));
-                exit(1); 
-            }
-        }  
-
-        // changing stderr stream
-        if (redirInfo->redirErr) {
-            if ((errStream = fopen(redirInfo->redirOut, redirInfo->flags[1]))) {
-                fprintf(stderr, "Error while opening file %s with flag %s: %s\n", redirInfo->redirOut, redirInfo->flags[0], strerror(errno));
-                exit(1);  
-            }
-        }    */
 
         execvp(args[0], args);
 
