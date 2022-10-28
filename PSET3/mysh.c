@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+// im getting a seg fault when i run it
 struct info {
     char **redirFiles; //redirFiles[0] = in, redirFiles[1] = out, redirFiles[2] = err
     char **flags; // array to keep track of flags. flags[0] -> stdout, flags[1] -> stderr
@@ -156,7 +157,7 @@ char** tokenization(char *line) {
 void shelliza_exec(char **args, int *status, struct info *redirInfo) {
     int i;
     int wstatus; 
-    
+
     struct rusage rusage;
     clock_t realTime; 
     realTime = clock();
