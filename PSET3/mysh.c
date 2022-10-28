@@ -13,10 +13,8 @@
 #include <fcntl.h>
 
 struct info {
-    char *redirIn;
-    char *redirOut;
-    char *redirErr;
-    int flags[2]; // array to keep track of flags. char[0] -> stdout, char[1] -> stderr
+    char **redirFiles; //redirFiles[0] = in, redirFiles[1] = out, redirFiles[2] = err
+    char **flags; // array to keep track of flags. flags[0] -> stdout, flags[1] -> stderr
     int redirs; // redirs is a 3 bit number that represents which streams were redirected
     // Example: 
     // stderrr  stdout  stdin
@@ -36,7 +34,7 @@ struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
                 break; 
             }
             // Redirect stdin
-            redirInfo->redirIn = strdup(filename);
+            redirInfo->redirFiles[0] = strdup(filename);
             //printf("%s\n", redirInfo->redirIn); 
             redirInfo->redirs++; 
             //error
@@ -47,13 +45,13 @@ struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
                 printf("stdout was already redirected\n");
                 break;
             }
-            redirInfo->redirOut = strdup(filename);
+            redirInfo->redirFiles[1] = strdup(filename);
             if ((args[1]) == '>') {
                 // Append
-                redirInfo->flags[0] = O_APPEND; 
+                redirInfo->flags[0] = "a"; 
             } else {
                 // Truncate 
-                redirInfo->flags[0] = O_TRUNC; 
+                redirInfo->flags[0] = "w"; 
             }
             redirInfo->redirs = redirInfo->redirs + 2; 
             //printf("%d\n", redirs); 
@@ -65,13 +63,13 @@ struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
                 printf("stderr was already redirected\n");
                 break;
             }
-            redirInfo->redirErr = strdup(filename);
+            redirInfo->redirFiles[2] = strdup(filename);
             if ((args[1]) == '>' && ((args[2]) == '>')) {
                 // Append
-                redirInfo->flags[0] = O_APPEND; 
+                redirInfo->flags[0] = "a"; 
             } else if ((args[1]) == '>' && ((args[2]) >= 1 && ((args[2]) <= 127))) {
                 // Truncate
-                redirInfo->flags[0] = O_TRUNC; 
+                redirInfo->flags[0] = "w"; 
             }
             redirInfo->redirs = redirInfo->redirs + 4; 
             //printf("%d\n", redirs); 
@@ -155,16 +153,63 @@ char** tokenization(char *line) {
     return string; 
 }
 
-void shelliza_exec(char **args, int *status) {
+void shelliza_exec(char **args, int *status, struct info *redirInfo) {
     int i;
     int wstatus; 
+    
     struct rusage rusage;
     clock_t realTime; 
     realTime = clock();
     pid_t childPid = fork();
 
+    FILE *streams[3] = {stdin, stdout, stderr}; 
+
+    int j = 0x1; 
+
     if (childPid == 0) { // inside child process
+        for (i = 0; i < 3; i++) {
+            if (redirInfo->redirs & j) { 
+                if ((streams[i] = fopen(redirInfo->redirFiles[i], redirInfo->flags[i]))) {
+                    fprintf(stderr, "Error while opening file %s for reading: %s\n", redirInfo->redirFiles[i], strerror(errno));
+                    exit(1);  
+                }
+                if (dup2(fileno(streams[i]), i)) {
+                    fprintf(stderr, "Error while obtaining file descriptor for file %s: %s\n", redirInfo->redirFiles[i], strerror(errno));
+                    exit(1);
+                }
+            }
+            j >> 1; // left shift j to perform the next masking
+        }/*
+         // changing stdin stream
+        if (redirInfo->redirIn) {
+            if ((inStream = fopen(redirInfo->redirIn, "r"))) {
+                fprintf(stderr, "Error while opening file %s for reading: %s\n", redirInfo->redirIn, strerror(errno));
+                exit(1); 
+            }
+            if (dup2(fileno(inStream), STDIN_FILENO)) {
+                fprintf(stderr, "Error while obtaining file descriptor for file %s: %s\n", redirInfo->redirIn, strerror(errno));
+                exit(1);
+            }
+        }
+
+        // changing stdout stream
+        if (redirInfo->redirOut) {
+            if ((outStream = fopen(redirInfo->redirOut, redirInfo->flags[0]))) {
+                fprintf(stderr, "Error while opening file %s with flag %s: %s\n", redirInfo->redirIn, redirInfo->flags[0], strerror(errno));
+                exit(1); 
+            }
+        }  
+
+        // changing stderr stream
+        if (redirInfo->redirErr) {
+            if ((errStream = fopen(redirInfo->redirOut, redirInfo->flags[1]))) {
+                fprintf(stderr, "Error while opening file %s with flag %s: %s\n", redirInfo->redirOut, redirInfo->flags[0], strerror(errno));
+                exit(1);  
+            }
+        }    */
+
         execvp(args[0], args);
+
         fprintf(stderr, "Error while executing command %s: %s\n", args[0], strerror(errno));
         exit(1);
     } else if (childPid > 0) { // parent process
@@ -199,23 +244,28 @@ void shelliza_exec(char **args, int *status) {
         }
 }
 
-void shelliza_builtin(char **args, int *status) {
+void shelliza_builtin(char **args, int *status, struct info *redirInfo) {
     int i; 
+
     for (i = 0; i < 3; i++) {
         if (!strcmp(args[0], functions[i].name)) { //if the command matches a command in the functions map (struct)
             *status = functions[i].func(args, status); //call the respective built in function and set the exit status
             return;
         }
     }
-    shelliza_exec(args, status); // if function is not a built-in function, call exec
+    shelliza_exec(args, status, redirInfo); // if function is not a built-in function, call exec
 }
 
-void driver(FILE *stream, char *inFileName) {  
+void driver(FILE *inStream, char *inFileName) {  
     char **execArgs; 
     char *buffer; 
     int status = 0;
 
     struct info *redirInfo = malloc(sizeof *redirInfo);
+    // initializing redirection to NULL
+    redirInfo->redirFiles[0] = NULL;
+    redirInfo->redirFiles[1] = NULL;
+    redirInfo->redirFiles[2] = NULL;
 
     size_t bufsize = 500; // just a random number 
     buffer = (char *)malloc((bufsize + 1) * sizeof(char));
@@ -226,10 +276,10 @@ void driver(FILE *stream, char *inFileName) {
     }
 
     while (1) {
-        if (stream == stdin) {
+        if (inStream == stdin) {
             printf("[shelliza:~]$ ");
         }
-        if (getline(&buffer, &bufsize, stream) == -1) {
+        if (getline(&buffer, &bufsize, inStream) == -1) {
             break;
         }
 
@@ -240,7 +290,7 @@ void driver(FILE *stream, char *inFileName) {
         }
 
         // iterate through the strings in tokens
-            // count number of '<' + number of '>' + number of '2>' + number of '>>' + number of '2>>'
+        // count number of '<' + number of '>' + number of '2>' + number of '>>' + number of '2>>'
         int i;
         int j; 
         int length;
@@ -253,9 +303,8 @@ void driver(FILE *stream, char *inFileName) {
                 }
             }
         }
-        // redirInfo is returned, need to open the files slash set streams accordingly (in exec?)
 
-        shelliza_builtin(tokens, &status);
+        shelliza_builtin(tokens, &status, redirInfo);
 
         free(tokens); 
     }
@@ -266,11 +315,12 @@ void driver(FILE *stream, char *inFileName) {
     }
 
     free(buffer); 
+    //free(redirInfo);
     return;
 }
 
 int main(int argc, char **argv) {
-    FILE *stream;
+    FILE *inStream;
     char *inFileName;
     char *pathname;
     int fd;
@@ -278,13 +328,13 @@ int main(int argc, char **argv) {
     // if shell script
     if ((pathname = argv[1]) != NULL) {
         inFileName = pathname;
-        stream = fopen(pathname, "r");
+        inStream = fopen(pathname, "r");
     } else { // else if not shell script 
         inFileName = "STDIN"; 
-        stream = stdin; 
+        inStream = stdin; 
     }
 
-    driver(stream, inFileName); 
+    driver(inStream, inFileName); 
 
     return 0;
 }
