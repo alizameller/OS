@@ -25,8 +25,11 @@ struct info {
 
 struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
     char *temp = args;
-    char *filename = strtok(temp, "<>2");
+    char *filename = strtok(temp, "<>");
     //printf("%s\n", filename); 
+    if (!strcmp(filename, "2")) {
+        filename = strtok(NULL, "<>"); 
+    }
     switch(args[0]) {
         case '<':
             if (redirInfo->redirs & 0x1) { //stdin was already redirected
@@ -170,22 +173,15 @@ void shelliza_exec(char **args, int *status, struct info *redirInfo) {
     if (childPid == 0) { // inside child process
         for (i = 0; i < 3; i++) {
             if (redirInfo->redirs & j) { 
-                printf("%s %s\n", redirInfo->redirFiles[i], redirInfo->flags[i]); 
-                if ((streams[i] = fopen(redirInfo->redirFiles[i], redirInfo->flags[i]))) {
-                    fprintf(stderr, "Error while opening file %s for reading: %s\n", redirInfo->redirFiles[i], strerror(errno));
+                //printf("%s %s\n", redirInfo->redirFiles[i], redirInfo->flags[i]); 
+                if (!(freopen(redirInfo->redirFiles[i], redirInfo->flags[i], streams[i]))) {
+                    fprintf(stderr, "Error while opening file %s with the flag %s: %s\n", redirInfo->redirFiles[i], redirInfo->flags[i], strerror(errno));
                     exit(1);  
                 }
-                if (dup2(fileno(streams[i]), i)) {
-                    fprintf(stderr, "Error while obtaining file descriptor for file %s: %s\n", redirInfo->redirFiles[i], strerror(errno));
-                    exit(1);
-                }
-                close(fileno(streams[i])); // closing the file descriptor to keep a clean file descriptor environment
             }
             j = j << 1; // left shift j to perform the next masking
         }
-
         execvp(args[0], args);
-
         fprintf(stderr, "Error while executing command %s: %s\n", args[0], strerror(errno));
         exit(1);
     } else if (childPid > 0) { // parent process
@@ -237,11 +233,7 @@ void driver(FILE *inStream, char *inFileName) {
     char *buffer; 
     int status = 0;
 
-    struct info *redirInfo = malloc(sizeof *redirInfo);
-    // initializing redirection to NULL
-    redirInfo->redirFiles[0] = NULL;
-    redirInfo->redirFiles[1] = NULL;
-    redirInfo->redirFiles[2] = NULL;
+    struct info *redirInfo = malloc(sizeof (struct info));
 
     size_t bufsize = 500; // just a random number 
     buffer = (char *)malloc((bufsize + 1) * sizeof(char));
@@ -258,6 +250,7 @@ void driver(FILE *inStream, char *inFileName) {
         if (getline(&buffer, &bufsize, inStream) == -1) {
             break;
         }
+        printf("%s\n", buffer);
 
         char **tokens = tokenization(buffer);
         if ((tokens[0] == NULL) || (*tokens[0] == '#')) {
@@ -265,19 +258,31 @@ void driver(FILE *inStream, char *inFileName) {
             continue; 
         }
 
+        // initializing redirection to NULL
+        redirInfo->redirFiles[0] = redirInfo->redirFiles[1] = redirInfo->redirFiles[2] = NULL;
+        redirInfo->flags[0] = redirInfo->flags[1] = redirInfo->flags[2] = NULL;
+        redirInfo->redirs = 0;
+
         // iterate through the strings in tokens
-        // count number of '<' + number of '>' + number of '2>' + number of '>>' + number of '2>>'
         int i;
         int j; 
         int length;
+        int firstRedir = 0;
         for (i = 0; tokens[i]; i++) {
             length = strlen(tokens[i]);
             for (j = 0; j < length; j++) {
                 if (tokens[i][j] == '>' || tokens[i][j] == '<') {
                     redirInfo = redirIO(tokens[i], redirInfo->redirs, redirInfo); 
                     j = length; 
+                    if (!firstRedir) {
+                        firstRedir = i;
+                    }
                 }
             }
+        }
+
+        if (firstRedir) {
+            tokens[firstRedir] = NULL;
         }
 
         shelliza_builtin(tokens, &status, redirInfo);
@@ -290,8 +295,8 @@ void driver(FILE *inStream, char *inFileName) {
         exit(1);
     }
 
-    free(buffer); 
-    //free(redirInfo);
+    free(buffer);
+    free(redirInfo); 
     return;
 }
 
