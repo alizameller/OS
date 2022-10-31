@@ -145,7 +145,7 @@ char** tokenization(char *line) {
         }
         if (i == 1999) { // last valid index and string[i] is not NULL
             fprintf(stderr, "Error executing command. Too many tokens\n");
-            *string[0] = '#'; // overwrite string so that when tokenization returns, the driver function continues to the next command
+            string[0] = NULL; // overwrite string so that when tokenization returns, the driver function continues to the next command
         }
     }
 
@@ -185,7 +185,7 @@ void shelliza_exec(char **args, int *status, struct info *redirInfo) {
             fprintf(stderr, "Error while executing command %s: %s\n", args[0], strerror(errno));
             exit(127);
         }
-    } else if (childPid > 0) { // parent process
+    } else {
         if (wait3(&wstatus, 0, &rusage) == -1) {
             fprintf(stderr, "Error waiting for child process %d: %s\n", childPid, strerror(errno));
             *status = errno; 
@@ -213,8 +213,8 @@ void shelliza_exec(char **args, int *status, struct info *redirInfo) {
         fprintf(stderr, "User: %06fs ", rusage.ru_utime.tv_sec + rusage.ru_utime.tv_usec/1e6);
         fprintf(stderr, "System: %06fs\n", rusage.ru_stime.tv_sec + rusage.ru_stime.tv_usec/1e6); 
 
-        return;   
-        }
+        return;
+    }   
 }
 
 void shelliza_builtin(char **args, int *status, struct info *redirInfo) {
@@ -231,35 +231,33 @@ void shelliza_builtin(char **args, int *status, struct info *redirInfo) {
 
 void driver(FILE *inStream, char *inFileName) {  
     char **execArgs; 
-    char *buffer; 
+    char *buffer = NULL;
+    size_t bufsize = 0; // just a random number 
+    size_t size;
     int status = 0;
+    int i;
 
     struct info *redirInfo = (struct info *)malloc(sizeof (struct info));
-
-    size_t bufsize = 500; // just a random number 
-    buffer = (char *)malloc((bufsize + 1) * sizeof(char));
-
-    if(buffer == NULL) {
-        fprintf(stderr, "Error while allocating space for the buffer: %s\n", strerror(errno));
-        exit(1);
-    }
 
     while (1) {
         if (inStream == stdin) {
             printf("[shelliza:~]$ ");
         }
-        if (getline(&buffer, &bufsize, inStream) == -1) {
-            break;
+        if ((size = getline(&buffer, &bufsize, inStream)) == -1) { 
+            break; 
+        }
+        if(buffer[0] == '#' || buffer[0] == '\n') {
+				continue;
         }
         //printf("%s", buffer);
         buffer[strlen(buffer) -1] = '\0'; 
-
+        
         char **tokens = tokenization(buffer);
-        if ((tokens[0] == NULL) || (*tokens[0] == '#')) {
-            free(tokens); 
+
+        if (tokens[0] == NULL) {
             continue; 
         }
-
+        
         // initializing redirection to NULL
         redirInfo->redirFiles[0] = redirInfo->redirFiles[1] = redirInfo->redirFiles[2] = NULL;
         redirInfo->flags[0] = redirInfo->flags[1] = redirInfo->flags[2] = '\0';
@@ -287,8 +285,7 @@ void driver(FILE *inStream, char *inFileName) {
             tokens[firstRedir] = NULL;
         }
         shelliza_builtin(tokens, &status, redirInfo);
-
-        free(tokens); 
+        free(tokens);
     }
 
     if (errno) {
@@ -308,6 +305,8 @@ int main(int argc, char **argv) {
     FILE *inStream;
     char *inFileName;
     char *pathname;
+    char *buffer = NULL;
+    size_t bufsize = 0; 
     int fd;
 
     // if shell script
