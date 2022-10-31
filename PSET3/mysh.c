@@ -14,7 +14,7 @@
 
 struct info {
     char *redirFiles[3]; //redirFiles[0] = in, redirFiles[1] = out, redirFiles[2] = err
-    char *flags[3]; // array to keep track of flags. flags[0] -> stdin, flags[1] -> stdout, flags[2] -> stderr
+    int flags[3]; // array to keep track of flags. flags[0] -> stdin, flags[1] -> stdout, flags[2] -> stderr
     int redirs; // redirs is a 3 bit number that represents which streams were redirected
     // Example: 
     // stderrr  stdout  stdin
@@ -24,10 +24,10 @@ struct info {
 };
 
 struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
-    char *temp;
-    temp = strcpy(temp, args);
+    char temp[2000];
+    strcpy(temp, args);
     char *filename = strtok(temp, "<>");
-    //printf("%s\n", filename); 
+    
     if (!strcmp(filename, "2")) {
         filename = strtok(NULL, "<>"); 
     }
@@ -40,10 +40,8 @@ struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
             }
             // Redirect stdin
             redirInfo->redirFiles[0] = strdup(filename);
-            redirInfo->flags[0] = strdup("r");
-            //printf("%s\n", redirInfo->redirIn); 
+            redirInfo->flags[0] = O_RDONLY;
             redirInfo->redirs++; 
-            //error
             break;
         
         case '>':
@@ -54,14 +52,12 @@ struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
             redirInfo->redirFiles[1] = strdup(filename);
             if ((args[1]) == '>') {
                 // Append
-                redirInfo->flags[1] = strdup("a"); 
+                redirInfo->flags[1] = O_WRONLY | O_CREAT | O_APPEND; 
             } else {
                 // Truncate 
-                redirInfo->flags[1] = strdup("w"); 
+                redirInfo->flags[1] = O_WRONLY | O_CREAT | O_TRUNC; 
             }
             redirInfo->redirs = redirInfo->redirs + 2; 
-            //printf("%d\n", redirs); 
-            //error
             break;
 
         case '2':
@@ -72,17 +68,14 @@ struct info *redirIO(char *args, int redirs, struct info *redirInfo) {
             redirInfo->redirFiles[2] = strdup(filename);
             if ((args[1]) == '>' && ((args[2]) == '>')) {
                 // Append
-                redirInfo->flags[2] = strdup("a"); 
+                redirInfo->flags[2] = O_WRONLY | O_CREAT | O_APPEND;
             } else if ((args[1]) == '>' && ((args[2]) >= 1 && ((args[2]) <= 127))) {
                 // Truncate
-                redirInfo->flags[2] = strdup("w"); 
+                redirInfo->flags[2] = O_WRONLY | O_CREAT | O_TRUNC;
             }
             redirInfo->redirs = redirInfo->redirs + 4; 
-            //error
             break;
     }
-    //printf("%d\n", redirs); 
-    printf("%s\n", redirInfo->redirFiles[2]); 
     return redirInfo; 
 }
 
@@ -146,7 +139,7 @@ char** tokenization(char *line) {
     }
 
     for (i = 0, str1 = line; ; i++, str1 = NULL) {
-        string[i] = strtok(str1, " \t\n"); 
+        string[i] = strtok(str1, " \t"); 
         if (!string[i]) {
             break;
         }
@@ -163,7 +156,8 @@ void shelliza_exec(char **args, int *status, struct info *redirInfo) {
     int i;
     int wstatus;
     int j = 0x1; 
-    FILE *streams[3] = {stdin, stdout, stderr};  
+    int fd;
+    int stdFileno[3] = {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO};  
 
     struct rusage rusage;
     struct timeval startTime;
@@ -176,38 +170,41 @@ void shelliza_exec(char **args, int *status, struct info *redirInfo) {
         for (i = 0; i < 3; i++) {
             if (redirInfo->redirs & j) { 
                 //printf("%s %s\n", redirInfo->redirFiles[i], redirInfo->flags[i]); 
-                if (!(freopen(redirInfo->redirFiles[i], redirInfo->flags[i], streams[i]))) {
-                    fprintf(stderr, "Error while opening file %s with the flag %s: %s\n", redirInfo->redirFiles[i], redirInfo->flags[i], strerror(errno));
+                if ((fd = open(redirInfo->redirFiles[i], redirInfo->flags[i], 0666)) < 0) {
+                    fprintf(stderr, "Error while opening file %s with the flag %d: %s\n", redirInfo->redirFiles[i], redirInfo->flags[i], strerror(errno));
                     exit(1);  
                 }
+                if (dup2(fd , stdFileno[i]) < 0) {
+                    exit(1);
+                }
+                close(fd);
             }
             j = j << 1; // left shift j to perform the next masking
         }
-        execvp(args[0], args);
-        fprintf(stderr, "Error while executing command %s: %s\n", args[0], strerror(errno));
-        exit(127);
+        if (execvp(args[0], args) < 0) {
+            fprintf(stderr, "Error while executing command %s: %s\n", args[0], strerror(errno));
+            exit(127);
+        }
     } else if (childPid > 0) { // parent process
-        do {
-            if (wait3(&wstatus, 0, &rusage) == -1) {
-                fprintf(stderr, "Error waiting for child process %d: %s\n", childPid, strerror(errno));
-                *status = errno; 
-                return; 
-            }
+        if (wait3(&wstatus, 0, &rusage) == -1) {
+            fprintf(stderr, "Error waiting for child process %d: %s\n", childPid, strerror(errno));
+            *status = errno; 
+            return; 
+        }
 
-            if (WIFEXITED(wstatus)) { //WIFEXITED -> did proc exit normally (vs. signal termination)
-                wstatus >>= 8;
-                *status = wstatus; 
-                if (wstatus == 0) {
-                    printf("Child Process %d exited normally\n", childPid); 
-                } else {
-                    printf("Child Process %d exited with return value %d\n", childPid, wstatus);
-                }
-            } else if (WIFSIGNALED(wstatus)) { //WIFSIGNALED -> did proc exit successfully (exit code = 0)
-                wstatus &= 0x00FF; 
-                *status = wstatus; 
-                printf("Child Process %d exited with signal %d\n", childPid, wstatus);
+        if (WIFEXITED(wstatus)) { //WIFEXITED -> did proc exit normally (vs. signal termination)
+            wstatus >>= 8;
+            *status = wstatus; 
+            if (wstatus == 0) {
+                printf("Child Process %d exited normally\n", childPid); 
+            } else {
+                printf("Child Process %d exited with return value %d\n", childPid, wstatus);
             }
-        } while (!WIFEXITED(wstatus) && !WIFSIGNALED(wstatus)); 
+        } else if (WIFSIGNALED(wstatus)) { //WIFSIGNALED -> did proc exit successfully (exit code = 0)
+            wstatus &= 0x00FF; 
+            *status = wstatus; 
+            printf("Child Process %d exited with signal %d\n", childPid, wstatus);
+        }
 
         gettimeofday(&realTime, NULL); 
         getrusage(RUSAGE_CHILDREN, &rusage); 
@@ -222,8 +219,6 @@ void shelliza_exec(char **args, int *status, struct info *redirInfo) {
 
 void shelliza_builtin(char **args, int *status, struct info *redirInfo) {
     int i; 
-    printf("made it here\n");
-    printf("%s\n", args[0]); //this is where the seg fault happens
     
     for (i = 0; i < 3; i++) { 
         if (!strcmp(args[0], functions[i].name)) { //if the command matches a command in the functions map (struct)
@@ -231,8 +226,6 @@ void shelliza_builtin(char **args, int *status, struct info *redirInfo) {
             return;
         }
     }
-
-    printf("%s\n %s\n", *args, redirInfo->redirFiles[2]); 
     shelliza_exec(args, status, redirInfo); // if function is not a built-in function, call exec
 }
 
@@ -241,7 +234,7 @@ void driver(FILE *inStream, char *inFileName) {
     char *buffer; 
     int status = 0;
 
-    struct info *redirInfo = malloc(sizeof (struct info));
+    struct info *redirInfo = (struct info *)malloc(sizeof (struct info));
 
     size_t bufsize = 500; // just a random number 
     buffer = (char *)malloc((bufsize + 1) * sizeof(char));
@@ -258,7 +251,8 @@ void driver(FILE *inStream, char *inFileName) {
         if (getline(&buffer, &bufsize, inStream) == -1) {
             break;
         }
-        //printf("%s", buffer); 
+        //printf("%s", buffer);
+        buffer[strlen(buffer) -1] = '\0'; 
 
         char **tokens = tokenization(buffer);
         if ((tokens[0] == NULL) || (*tokens[0] == '#')) {
@@ -268,9 +262,9 @@ void driver(FILE *inStream, char *inFileName) {
 
         // initializing redirection to NULL
         redirInfo->redirFiles[0] = redirInfo->redirFiles[1] = redirInfo->redirFiles[2] = NULL;
-        redirInfo->flags[0] = redirInfo->flags[1] = redirInfo->flags[2] = NULL;
+        redirInfo->flags[0] = redirInfo->flags[1] = redirInfo->flags[2] = '\0';
         redirInfo->redirs = 0;
-
+        
         // iterate through the strings in tokens
         int i;
         int j; 
@@ -292,7 +286,6 @@ void driver(FILE *inStream, char *inFileName) {
         if (firstRedir) {
             tokens[firstRedir] = NULL;
         }
-
         shelliza_builtin(tokens, &status, redirInfo);
 
         free(tokens); 
@@ -303,11 +296,12 @@ void driver(FILE *inStream, char *inFileName) {
         exit(1);
     }
 
-    // end of file read, exiting shell with exit code 139
+    printf("end of file read, exiting shell with exit code %d\n", status);
 
     free(buffer);
     free(redirInfo); 
-    return;
+
+    exit(status);
 }
 
 int main(int argc, char **argv) {
