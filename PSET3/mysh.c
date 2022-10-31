@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 struct info {
     char *redirFiles[3]; //redirFiles[0] = in, redirFiles[1] = out, redirFiles[2] = err
