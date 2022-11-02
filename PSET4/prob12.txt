@@ -7,5 +7,4 @@
 If SIGCONT was sent instead of SIGHUP, pid 123 would recieve this signal 20 times, because it does not cause termination and the process would continue on as usual.
 
 2a. The sequence ABA will never be produced as part of the output of program because the write is handled atomically and will not be interleaved. The only case of interleaving occurs when the chunks of data exceed the size specified in the write call, which in this case is 1024 and the data is interleaved in 1k chunks. Moreover, because multiple processes aren't trying to read from the same pipe (only one process is doing that), the data from the write end to the pipe is preserved. 
-
 2b.It is necessary for the parent process to close the write end of the pipe, so that when the parent process reads from the pipe the closed end indicates the end of file condition on the pipe.   
