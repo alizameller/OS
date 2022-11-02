@@ -1,0 +1,12 @@
+1a. stty kill ^i
+1b. 
+    The program gets stuck in an infinite loop. The signal function sets the function "handle" to handle the signal number denoted by "SIGSEGV". The first time the line *(int *)0 = 123; is hit, a segfault occurs (i.e. SIGSEGV) which is a synchronous signal, so the handler function runs and returns to the same spot where the interrupt occured. When the line is run again, there is another segfault that causes the handler function to run, update cnt and return to the same spot again. This is the endless loop that the program gets stuck in and the program therefore hangs and never exits.
+1c. SIGKILL, SIGSTOP
+1d. SIGCONT
+1e. 
+    All of the SIGHUP signals that get sent to pid 123 are in a pending state until afer pid 123 uses sigprocmask to unmask the SIGHUP signal. When this happens however, only one of the SIGHUP signals gets sent to pid 123 because this signal causes the process to terminate.
+    If SIGCONT was sent instead of SIGHUP, pid 123 would recieve this signal 20 times, because it does not cause termination and the process would continue on as usual.
+2a. 
+    The sequence ABA will never be produced as part of the output of program because the write is handled atomically and will not be interleaved. The only case of interleaving occurs when the chunks of data exceed the size specified in the write call, which in this case is 1024 and the data is interleaved in 1k chunks. Moreover, because multiple processes aren't trying to read from the same pipe (only one process is doing that), the data from the write end to the pipe is preserved. 
+2b.
+   It is necessary for the parent process to close the write end of the pipe, so that when the parent process reads from the pipe the closed end indicates the end of file condition on the pipe.   
