@@ -1,7 +1,7 @@
-1a. stty kill ^i
+1a. stty intr ^i
 1b. The program gets stuck in an infinite loop. The signal function sets the function "handle" to handle the signal number denoted by "SIGSEGV". The first time the line *(int *)0 = 123; is hit, a segfault occurs (i.e. SIGSEGV) which is a synchronous signal, so the handler function runs and returns to the same spot where the interrupt occured. When the line is run again, there is another segfault that causes the handler function to run, update cnt and return to the same spot again. This is the endless loop that the program gets stuck in and the program therefore hangs and never exits.
 1c. SIGKILL, SIGSTOP
-1d. SIGCONT
+1d. SIGCONT is sent to to resume the program from its stopped state.
 1e. All of the SIGHUP signals that get sent to pid 123 are in a pending state until afer pid 123 uses sigprocmask to unmask the SIGHUP signal. When this happens however, only one of the SIGHUP signals gets sent to pid 123 because this signal causes the process to terminate.
 
 If SIGCONT was sent instead of SIGHUP, pid 123 would recieve this signal 20 times, because it does not cause termination and the process would continue on as usual.
