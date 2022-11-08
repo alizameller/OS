@@ -34,8 +34,14 @@ int main(int argc, char **argv) {
             exit(1);  
         }
         
-        pipe(pipe1);
-        pipe(pipe2);
+        if (pipe(pipe1) != 0) {
+            fprintf(stderr, "Bad pipe: %s\n", strerror(errno));
+            exit(1);
+        }
+        if (pipe(pipe2) != 0) {
+            fprintf(stderr, "Bad pipe: %s\n", strerror(errno));
+            exit(1); 
+        }
 
         if (!(grepPid = fork())) { //grep with sole argument = pattern
             close(pipe1[1]);
@@ -47,37 +53,37 @@ int main(int argc, char **argv) {
             }
             close(pipe1[0]);
 
-            if (dup2(pipe2[1] , STDOUT_FILENO < 0)) {
+            if (dup2(pipe2[1] , STDOUT_FILENO) < 0) {
                 exit(1);
-            }
+            } 
             close(pipe2[1]);
 
-            char *grepArgs[2] = {argv[1], NULL}; 
-            
-            if (execvp("grep", grepArgs) < 0) {
-                fprintf(stderr, "Error while executing grep with pattern %s: %s\n", argv[1], strerror(errno));
-                exit(1); //exit?
-            }
-        }
-        
-        if (!(morePid = fork())) { //more 
+            char *grepArgs[3] = {"grep", argv[1], (char *) NULL}; 
+            execvp("grep", grepArgs);
+            fprintf(stderr, "Error while executing grep with pattern %s: %s\n", argv[1], strerror(errno));
+            exit(1); //exit?
+
+        } else if (!(morePid = fork())) { //more 
+            close(pipe1[0]);
+            close(pipe1[1]); 
             close(pipe2[1]); 
             //stdin = pipe2[0] // read side of pipe2
             //stdout = stdout
-            if (dup2(pipe2[0] , STDIN_FILENO < 0)) {
+            if (dup2(pipe2[0] , STDIN_FILENO) < 0) {
                 exit(1);
             }
-            close(pipe1[0]);
+            close(pipe2[0]);
 
-            if (execvp("more", NULL) < 0) {
-                fprintf(stderr, "Error while executing more: %s\n", strerror(errno));
-                exit(1); //exit?
-            }
+            char *moreArgs[2] = {"more", (char *) NULL}; 
+            execvp("more", moreArgs);
+            fprintf(stderr, "Error while executing more: %s\n", strerror(errno));
+            exit(1); //exit?
+
         } else {
             close(pipe1[0]); // close read side of pipe1 because we are about to write to the write side of pipe1
             close(pipe2[0]);
             close(pipe2[1]);
-            
+
             while ((bytesRead = read(fd, buf, sizeof buf)) > 0) { //read from file and write to pipe1
                 if ((bytesWritten = write(pipe1[1], buf, bytesRead)) < bytesRead) {
                     if (bytesWritten == -1) {
@@ -92,8 +98,9 @@ int main(int argc, char **argv) {
                     //make some decision
                 }
             }
-            close(pipe1[1]);
+
             close(fd);
+            close(pipe1[1]);
 
             pid_t pids[2] = {grepPid, morePid};
             //before moving on to next file, call wait twice to avoid leaving zombie processes (the grep and the more processes).
