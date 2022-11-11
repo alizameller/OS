@@ -123,16 +123,12 @@ int main(int argc, char **argv) {
                 }
             } 
 
-            if (errno != 0) {
-                fprintf(stderr, "Some error occured during Read or Write system calls: %s\n", strerror(errno));
-            }
-
             if (setjmp(jumpBuf) != 0) {
-                close(fd);
                 close(pipe1[1]);
                 close(pipe1[0]);
                 close(pipe2[1]);
                 close(pipe2[0]);
+                close(fd);
                 continue;
             } 
 
@@ -149,6 +145,7 @@ int main(int argc, char **argv) {
                 }
             }
         }
+        fprintf(stderr, "*** End of file reached ***\n");
     }
     return 0; 
 }
