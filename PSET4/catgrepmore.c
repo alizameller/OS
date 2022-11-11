@@ -59,6 +59,7 @@ int main(int argc, char **argv) {
     } 
 
     for (i = 2; i < argc; i++) {
+        errno = 0; 
         numFiles++; 
 
         if ((fd = open(argv[i], O_RDONLY, 0666)) < 0) {
@@ -122,6 +123,10 @@ int main(int argc, char **argv) {
                     fprintf(stderr, "Partial write occurred\n");
                 }
             } 
+
+            if (errno != 0) {
+                fprintf(stderr, "Some error occured during Read or Write system calls: %s\n", strerror(errno));
+            }
 
             if (setjmp(jumpBuf) != 0) {
                 close(pipe1[1]);
