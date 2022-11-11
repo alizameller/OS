@@ -36,6 +36,7 @@ void sigHandler(int signum) {
 }
 
 int main(int argc, char **argv) {
+    errno = 0;
     totalFiles = argc - 2; 
     int fd; 
     int i;
