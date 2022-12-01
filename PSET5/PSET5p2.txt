@@ -2,6 +2,8 @@
 
 2B) For each inode, there is a struct address_space that contains a radix-64 tree that keeps track of the collection of struct pages that correspond to a file. The tree is specifically useful when given an offset to a location in a file because it can map that spot to the specific struct page using a pointer. The kernel asks, "where in memory, can I find this area of the file?" and the answer provided is the struct page if it exists, otherwise the answer is NULL. The kernel needs to consult the radix-64 tree struture when faulting-in a memory-mapped file to determine if that offset in the file has recently been read from, written to, or mmaped (i.e. a minor fault) in order to point to the right page. 
 
-2C)The struct vm_area_struct is consulted to determine if a SIGSEGV should be delivered. Strictly in user mode, the vm_start, vm_end fields are examined to determine if the user is trying to access kernel memory regions or not near a GROWSDOWN area and the vm_flags field is examined to determine if the access type is valid for that area. If the user is trying to access an area of memory that is not for the user or the user does not have valid permissions, a SIGSEGV will be sent. 
+When the read/write system calls are called a copy of the file is needed which means the tree has to be consulted.
 
-2D)If the PTE indicates that the page is dirty, the page frame must be written back to the disk before placing it on the free list. 
+2C) The struct vm_area_struct is consulted to determine if a SIGSEGV should be delivered. Strictly in user mode, the vm_start, vm_end fields are examined to determine if the user is trying to access kernel memory regions or not near a GROWSDOWN area and the vm_flags field is examined to determine if the access type is valid for that area. If the user is trying to access an area of memory that is not for the user or the user does not have valid permissions, a SIGSEGV will be sent. 
+
+2D) If the PTE indicates that the page is dirty, the page frame must be written back to the disk before placing it on the free list. 
