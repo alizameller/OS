@@ -18,17 +18,18 @@ void sigHandler(int signum) {
     }
 } */
 
-int compare(char *pattern, char *file, int c) {
+int compare(char *pattern, char *file, int context) {
     printf ("Input File: %s\n", file);
     int size;
     struct stat st; 
     int file_fd;
     char *info;
     int i; 
+    int ret;
 
     if ((file_fd = open(file, O_RDONLY)) == -1) {
-        fprintf(stderr,"Error: could not open %s for reading: %s\n", optarg, strerror(errno));
-        exit(1); 
+        fprintf(stderr,"Error: could not open %s for reading: %s\n", file, strerror(errno));
+        return -1; 
     }
 
     // Get size of file
@@ -37,22 +38,76 @@ int compare(char *pattern, char *file, int c) {
 
     if ((info = mmap(NULL, size, PROT_READ,MAP_SHARED, file_fd, 0)) == MAP_FAILED) {
         fprintf(stderr,"Error: could not mmap %s: %s\n", optarg, strerror(errno));
-        exit(1);
+        return -1;
     }
 
-    // just a check
-    for(i = 0; i < 139; i++)
+    /* just a check
+    for(i = 0; i < strlen(info); i++)
         printf("<%c> ", info[i]);
+    */
 
-    return 0;
+    int pattern_length = strlen(pattern);
+    int matches = 0;
+ 
+    char *start = info;
+    char *end = info + size; 
+    char *info_start;
+    char *info_end; 
+    int j = 0;
+    
+    for (i = 0; i < size - pattern_length + 1; i++) {
+        ret = memcmp(pattern, info + i, pattern_length);
+        //printf("first char of info %c\n", info[i]); 
+        //printf("%d\n", ret);
+        if (!ret) {
+            matches++; 
+            printf("%s:%d ", file, i); 
+            info_start = info + i;
+            info_end  = info_start + pattern_length; 
+
+            if (context) {
+                info_end  = info_end + context; 
+                j = context;
+                while (info_start > start && j > 0) { //slide info_start to a valid starting point
+                   j--;
+                   info_start--; 
+                }
+
+                // printing readable characters
+                for(j = 0; j < info_end - info_start; j++) {
+                    if (&info_start[j] == end) {
+                        // reached end of file
+                        break; 
+                    }
+                    printf("%C ", info_start[j]); 
+                }
+
+                printf(" "); 
+
+                // printing in hex characters
+                for(j = 0; j < info_end - info_start; j++) {
+                    if (&info_start[j] == end) {
+                        // reached end of file
+                        break; 
+                    }
+                    printf("%X ", info_start[j]); 
+                }
+
+                printf("\n"); 
+            }
+        }
+    }
+
+    return matches;
 }
 
-void getArgs(int argc, char** argv) {
+int driver(int argc, char** argv) {
     int i;
     int opt;
     int c = 0;
     int p = 0;
 
+    int context = 0; 
     char *pattern_file;
     int size;
     struct stat st;
@@ -67,7 +122,8 @@ void getArgs(int argc, char** argv) {
             case 'c': 
                 // output the binary context
                 c = 1; 
-                printf("context context context!\n"); 
+                context = atoi(optarg); 
+                printf("context bytes: %d\n", context);
 
                 break;
             case 'p': 
@@ -76,7 +132,7 @@ void getArgs(int argc, char** argv) {
                 pattern_file = optarg;
                 if ((pattern_fd = open(pattern_file, O_RDONLY)) == -1) {
                     fprintf(stderr,"Error: could not open %s for reading: %s\n", optarg, strerror(errno));
-                    exit(1); 
+                    return -1; 
                 }
 
                 // Get size of file
@@ -86,7 +142,7 @@ void getArgs(int argc, char** argv) {
                 // Call mmap to read pattern file and store pattern in p (an array of chars)
                 if ((pattern = mmap(NULL, size, PROT_READ,MAP_SHARED, pattern_fd, 0)) == MAP_FAILED) {
                     fprintf(stderr,"Error: could not mmap %s: %s\n", optarg, strerror(errno));
-                    exit(1);
+                    return -1;
                 }
                 
                 p = 1; 
@@ -96,31 +152,35 @@ void getArgs(int argc, char** argv) {
     }
 
     if (!p) { // if -p was not used, the pattern is the first argument after the options
-        printf("p = 0\n");
         pattern = argv[optind];
         optind++; 
     }
 
-     // just a check
-    for(i = 0; i < 25; i++)
-        printf("<%c> ", pattern[i]);
-    
+     /* just a check
+    for(i = 0; i < strlen(pattern); i++) {
+        printf("Pattern: <%c> ", pattern[i]);
+    } 
     printf("\n");
+    */
+
+    int val; 
 
     if (optind >= argc) { // i.e. no input files provided
         printf("input is stdin\n");
     } else {
         for (index = optind; index < argc; index++) { 
-            offset = compare(pattern, argv[index], c); 
-            printf("%d\n", offset); 
+            val = compare(pattern, argv[index], context);
+            if (val == -1) {
+                return val; 
+            } 
+            printf("found %d matches\n", val); 
         }
     }
 
-    return; 
+    return !(val && 1);   
 }
 
-int main(int argc, char **argv) {
-    getArgs(argc, argv); 
+int main(int argc, char **argv) { 
     //errno = 0;
     //int i; 
 
@@ -132,5 +192,5 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Error while setting signal: %s\n", strerror(errno));
         exit(1);
     } */
-    return 0; 
+    return driver(argc, argv); 
 }
