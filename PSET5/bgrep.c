@@ -20,10 +20,35 @@ void sigHandler(int signum) {
 
 int compare(char *pattern, char *file, int c) {
     printf ("Input File: %s\n", file);
+    int size;
+    struct stat st; 
+    int file_fd;
+    char *info;
+    int i; 
+
+    if ((file_fd = open(file, O_RDONLY)) == -1) {
+        fprintf(stderr,"Error: could not open %s for reading: %s\n", optarg, strerror(errno));
+        exit(1); 
+    }
+
+    // Get size of file
+    stat(file, &st);
+    size = st.st_size;
+
+    if ((info = mmap(NULL, size, PROT_READ,MAP_SHARED, file_fd, 0)) == MAP_FAILED) {
+        fprintf(stderr,"Error: could not mmap %s: %s\n", optarg, strerror(errno));
+        exit(1);
+    }
+
+    // just a check
+    for(i = 0; i < 139; i++)
+        printf("<%c> ", info[i]);
+
     return 0;
 }
 
 void getArgs(int argc, char** argv) {
+    int i;
     int opt;
     int c = 0;
     int p = 0;
@@ -69,14 +94,18 @@ void getArgs(int argc, char** argv) {
                 break;
         }
     }
-    // just a check
-    printf("%s\n", pattern); 
 
     if (!p) { // if -p was not used, the pattern is the first argument after the options
         printf("p = 0\n");
         pattern = argv[optind];
         optind++; 
     }
+
+     // just a check
+    for(i = 0; i < 25; i++)
+        printf("<%c> ", pattern[i]);
+    
+    printf("\n");
 
     if (optind >= argc) { // i.e. no input files provided
         printf("input is stdin\n");
