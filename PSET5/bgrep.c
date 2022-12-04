@@ -45,11 +45,6 @@ int compare(char *pattern, char *file, int context) {
 
     close(file_fd); 
 
-    /* just a check
-    for(i = 0; i < strlen(info); i++)
-        printf("<%c> ", info[i]);
-    */
-
     int pattern_length = strlen(pattern);
     int matches = 0;
  
@@ -61,8 +56,6 @@ int compare(char *pattern, char *file, int context) {
     
     for (i = 0; i < size - pattern_length + 1; i++) {
         ret = memcmp(pattern, info + i, pattern_length);
-        //printf("first char of info %c\n", info[i]); 
-        //printf("%d\n", ret);
         if (!ret) {
             matches++; 
             printf("%s:%d ", file, i); 
@@ -78,19 +71,8 @@ int compare(char *pattern, char *file, int context) {
                     info_start = start; 
                 }
                 
-                /*j = context;
-                while (info_start > start && j > 0) { //slide info_start to a valid starting point
-                   j--;
-                   info_start--; 
-                } */
-
                 // printing readable characters
                 for(j = 0; j < info_end - info_start; j++) {
-                    /* if (&info_start[j] == end) {
-                        // reached end of file
-                        break; 
-                    } */
-
                     if (isprint(info_start[j])) {
                         printf("%C ", info_start[j]); 
                     } else {
@@ -102,10 +84,6 @@ int compare(char *pattern, char *file, int context) {
 
                 // printing in hex characters
                 for(j = 0; j < info_end - info_start; j++) {
-                    /* if (&info_start[j] == end) {
-                        // reached end of file
-                        break; 
-                    } */
                     printf("%X ", info_start[j]); 
                 }
 
@@ -172,17 +150,10 @@ int driver(int argc, char** argv) {
         pattern = argv[optind++];
     }
 
-     /* just a check
-    for(i = 0; i < strlen(pattern); i++) {
-        printf("Pattern: <%c> ", pattern[i]);
-    } 
-    printf("\n");
-    */
-
     int val; 
     int error_occured = 0; 
 
-    if (optind >= argc) { // i.e. no input files provided
+    if (optind >= argc) { // no input files provided
         printf("input is stdin\n");
         exit(1); 
     } else {
