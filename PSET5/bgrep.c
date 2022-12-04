@@ -97,9 +97,8 @@ int compare(char *pattern, char *file, int context, int is_stdin) {
                 for(j = 0; j < info_end - info_start; j++) {
                     printf("%X ", info_start[j]); 
                 }
-
-                printf("\n"); 
             }
+            printf("\n"); 
         }
     }
     if (munmap(info, size) == -1) {
@@ -108,12 +107,11 @@ int compare(char *pattern, char *file, int context, int is_stdin) {
     }
 
     if (sigsetjmp(jumpBuf, 1)) {
+        close(file_fd);   
         if (munmap(info, size) == -1) {
-            fprintf(stderr,"Error: could not mmap %s: %s\n", file, strerror(errno));
-            return -1; 
+            fprintf(stderr,"Error: could not mmap %s: %s\n", file, strerror(errno)); 
         }
-        close(file_fd);  
-        matches = 0; 
+        return -1; 
     }
 
     return matches;
