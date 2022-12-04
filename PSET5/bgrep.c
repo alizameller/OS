@@ -10,31 +10,38 @@
 #include <setjmp.h>
 #include <sys/mman.h>
 #include <ctype.h> 
+#include <limits.h>
 
-/*jmp_buf jumpBuf;
+jmp_buf jumpBuf;
 
 void sigHandler(int signum) {
-    if (signum == SIGBUS) {
-        return;
-    }
-} */
+    fprintf(stderr, "SIGBUS recieved moving on to next file or exiting");
+    siglongjmp(jumpBuf, 1);
+}
 
-int compare(char *pattern, char *file, int context) {
+int compare(char *pattern, char *file, int context, int is_stdin) {
     //printf ("Input File: %s\n", file);
     int size;
     struct stat st; 
     int file_fd;
-    char *info;
+    char *info = NULL;
     int i; 
     int ret;
 
-    if ((file_fd = open(file, O_RDONLY)) == -1) {
-        fprintf(stderr,"Error: could not open %s for reading: %s\n", file, strerror(errno));
+    if (is_stdin) { // input is stdin
+        file_fd = STDIN_FILENO;
+        file = "/dev/stdin"; 
+    } else {
+        if ((file_fd = open(file, O_RDONLY)) == -1) {
+            fprintf(stderr,"Error: could not open %s for reading: %s\n", file, strerror(errno));
+            return -1; 
+        }
+    }
+    // Get size of file
+    if (fstat(file_fd, &st) == -1) {
+        fprintf(stderr,"Error: could not get size of %s for mmap: %s\n", file, strerror(errno));
         return -1; 
     }
-
-    // Get size of file
-    stat(file, &st);
     size = st.st_size;
 
     if ((info = mmap(NULL, size, PROT_READ,MAP_SHARED, file_fd, 0)) == MAP_FAILED) {
@@ -44,7 +51,7 @@ int compare(char *pattern, char *file, int context) {
     }
 
     close(file_fd); 
-
+   
     int pattern_length = strlen(pattern);
     int matches = 0;
  
@@ -52,18 +59,23 @@ int compare(char *pattern, char *file, int context) {
     char *end = info + size; 
     char *info_start;
     char *info_end; 
-    int j = 0;
+    int j;
+    char *name;
     
     for (i = 0; i < size - pattern_length + 1; i++) {
         ret = memcmp(pattern, info + i, pattern_length);
         if (!ret) {
             matches++; 
-            printf("%s:%d ", file, i); 
+            if (is_stdin) {
+                name = "<standard input>";
+            } else {
+                name = file; 
+            }
+            printf("%s:%d ", name, i); 
             info_start = info + i;
             info_end = info_start + pattern_length; 
 
             if (context) {
-                //info_end  = info_end + context; 
                 if ((info_end += context) > end) {
                     info_end = end; 
                 }
@@ -74,21 +86,28 @@ int compare(char *pattern, char *file, int context) {
                 // printing readable characters
                 for(j = 0; j < info_end - info_start; j++) {
                     if (isprint(info_start[j])) {
+                        // ERROR CHECK
                         printf("%C ", info_start[j]); 
                     } else {
                         printf("? ");
                     }
                 }
-
                 printf(" "); 
 
-                // printing in hex characters
+                // printing hex characters
                 for(j = 0; j < info_end - info_start; j++) {
                     printf("%X ", info_start[j]); 
                 }
 
                 printf("\n"); 
             }
+        }
+    }
+
+    if (sigsetjmp(jumpBuf, 1)) {
+        munmap(info, size);
+        if (!is_stdin) {
+          close(file_fd);  
         }
     }
 
@@ -125,18 +144,21 @@ int driver(int argc, char** argv) {
                 // Read the pattern from pattern_file
                 pattern_file = optarg;
                 if ((pattern_fd = open(pattern_file, O_RDONLY)) == -1) {
-                    fprintf(stderr,"Error: could not open %s for reading: %s\n", optarg, strerror(errno));
+                    fprintf(stderr,"Error: could not open %s for reading: %s\n", pattern_file, strerror(errno));
                     return -1; 
                 }
 
                 // Get size of file
-                stat(pattern_file, &st);
+                if (fstat(pattern_fd, &st) == -1) {
+                    fprintf(stderr,"Error: could not get size of %s for mmap: %s\n", pattern_file, strerror(errno));
+                    return -1; 
+                }
                 size = st.st_size;
                 
                 // Call mmap to read pattern file and store pattern in p (an array of chars)
                 if ((pattern = mmap(NULL, size, PROT_READ,MAP_SHARED, pattern_fd, 0)) == MAP_FAILED) {
                     close(pattern_fd); 
-                    fprintf(stderr,"Error: could not mmap %s: %s\n", optarg, strerror(errno));
+                    fprintf(stderr,"Error: could not mmap %s: %s\n", pattern_file, strerror(errno));
                     return -1;
                 }
 
@@ -152,20 +174,23 @@ int driver(int argc, char** argv) {
 
     int val; 
     int error_occured = 0; 
+    int is_stdin = 0;
 
     if (optind >= argc) { // no input files provided
-        fprintf(stderr,"Error: can not use STDIN as input to bgrep: %s\n", strerror(errno));
-        exit(1); 
+        is_stdin = 1;
+        val = compare(pattern, argv[index], context, is_stdin);
+        if (val == -1) {
+            error_occured = 1; 
+        } 
     } else {
         for (index = optind; index < argc; index++) { 
-            val = compare(pattern, argv[index], context);
+            val = compare(pattern, argv[index], context, is_stdin);
             if (val == -1) {
                 error_occured = 1; 
             } 
-            //printf("found %d matches\n", val); 
         }
     }
-
+    
     if (error_occured) {
         return -1; 
     } 
@@ -174,16 +199,7 @@ int driver(int argc, char** argv) {
 }
 
 int main(int argc, char **argv) { 
-    //errno = 0;
-    //int i; 
+    signal(SIGBUS, sigHandler); 
 
-    /*struct sigaction sa;
-    sa.sa_handler = sigHandler;
-    sa.sa_flags = SA_RESTART;   
-
-    if (sigaction(SIGUSR1, &sa, NULL) == -1 || sigaction(SIGUSR2, &sa, NULL) == -1) {  
-        fprintf(stderr, "Error while setting signal: %s\n", strerror(errno));
-        exit(1);
-    } */
     return driver(argc, argv); 
 }
