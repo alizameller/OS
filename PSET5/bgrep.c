@@ -86,7 +86,6 @@ int compare(char *pattern, char *file, int context, int is_stdin) {
                 // printing readable characters
                 for(j = 0; j < info_end - info_start; j++) {
                     if (isprint(info_start[j])) {
-                        // ERROR CHECK
                         printf("%C ", info_start[j]); 
                     } else {
                         printf("? ");
@@ -103,12 +102,18 @@ int compare(char *pattern, char *file, int context, int is_stdin) {
             }
         }
     }
+    if (munmap(info, size) == -1) {
+        fprintf(stderr,"Error: could not mmap %s: %s\n", file, strerror(errno));
+        return -1; 
+    }
 
     if (sigsetjmp(jumpBuf, 1)) {
-        munmap(info, size);
-        if (!is_stdin) {
-          close(file_fd);  
+        if (munmap(info, size) == -1) {
+            fprintf(stderr,"Error: could not mmap %s: %s\n", file, strerror(errno));
+            return -1; 
         }
+        close(file_fd);  
+        matches = 0; 
     }
 
     return matches;
@@ -190,7 +195,7 @@ int driver(int argc, char** argv) {
             } 
         }
     }
-    
+
     if (error_occured) {
         return -1; 
     } 
