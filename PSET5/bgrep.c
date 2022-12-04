@@ -20,7 +20,7 @@ void sigHandler(int signum) {
 } */
 
 int compare(char *pattern, char *file, int context) {
-    printf ("Input File: %s\n", file);
+    //printf ("Input File: %s\n", file);
     int size;
     struct stat st; 
     int file_fd;
@@ -117,7 +117,7 @@ int driver(int argc, char** argv) {
                 // output the binary context
                 c = 1; 
                 context = atoi(optarg); 
-                printf("context bytes: %d\n", context);
+                //printf("context bytes: %d\n", context);
 
                 break;
             case 'p': 
@@ -154,7 +154,7 @@ int driver(int argc, char** argv) {
     int error_occured = 0; 
 
     if (optind >= argc) { // no input files provided
-        printf("input is stdin\n");
+        fprintf(stderr,"Error: can not use STDIN as input to bgrep: %s\n", strerror(errno));
         exit(1); 
     } else {
         for (index = optind; index < argc; index++) { 
@@ -162,7 +162,7 @@ int driver(int argc, char** argv) {
             if (val == -1) {
                 error_occured = 1; 
             } 
-            printf("found %d matches\n", val); 
+            //printf("found %d matches\n", val); 
         }
     }
 
