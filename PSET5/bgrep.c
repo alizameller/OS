@@ -9,6 +9,7 @@
 #include <signal.h>
 #include <setjmp.h>
 #include <sys/mman.h>
+#include <ctype.h> 
 
 /*jmp_buf jumpBuf;
 
@@ -37,9 +38,12 @@ int compare(char *pattern, char *file, int context) {
     size = st.st_size;
 
     if ((info = mmap(NULL, size, PROT_READ,MAP_SHARED, file_fd, 0)) == MAP_FAILED) {
-        fprintf(stderr,"Error: could not mmap %s: %s\n", optarg, strerror(errno));
+        close(file_fd); 
+        fprintf(stderr,"Error: could not mmap %s: %s\n", file, strerror(errno));
         return -1;
     }
+
+    close(file_fd); 
 
     /* just a check
     for(i = 0; i < strlen(info); i++)
@@ -63,33 +67,45 @@ int compare(char *pattern, char *file, int context) {
             matches++; 
             printf("%s:%d ", file, i); 
             info_start = info + i;
-            info_end  = info_start + pattern_length; 
+            info_end = info_start + pattern_length; 
 
             if (context) {
-                info_end  = info_end + context; 
-                j = context;
+                //info_end  = info_end + context; 
+                if ((info_end += context) > end) {
+                    info_end = end; 
+                }
+                if ((info_start -= context) < start) {
+                    info_start = start; 
+                }
+                
+                /*j = context;
                 while (info_start > start && j > 0) { //slide info_start to a valid starting point
                    j--;
                    info_start--; 
-                }
+                } */
 
                 // printing readable characters
                 for(j = 0; j < info_end - info_start; j++) {
-                    if (&info_start[j] == end) {
+                    /* if (&info_start[j] == end) {
                         // reached end of file
                         break; 
+                    } */
+
+                    if (isprint(info_start[j])) {
+                        printf("%C ", info_start[j]); 
+                    } else {
+                        printf("? ");
                     }
-                    printf("%C ", info_start[j]); 
                 }
 
                 printf(" "); 
 
                 // printing in hex characters
                 for(j = 0; j < info_end - info_start; j++) {
-                    if (&info_start[j] == end) {
+                    /* if (&info_start[j] == end) {
                         // reached end of file
                         break; 
-                    }
+                    } */
                     printf("%X ", info_start[j]); 
                 }
 
@@ -141,19 +157,19 @@ int driver(int argc, char** argv) {
                 
                 // Call mmap to read pattern file and store pattern in p (an array of chars)
                 if ((pattern = mmap(NULL, size, PROT_READ,MAP_SHARED, pattern_fd, 0)) == MAP_FAILED) {
+                    close(pattern_fd); 
                     fprintf(stderr,"Error: could not mmap %s: %s\n", optarg, strerror(errno));
                     return -1;
                 }
+
+                close(pattern_fd); 
                 
                 p = 1; 
-
-                break;
         }
     }
 
     if (!p) { // if -p was not used, the pattern is the first argument after the options
-        pattern = argv[optind];
-        optind++; 
+        pattern = argv[optind++];
     }
 
      /* just a check
@@ -164,20 +180,26 @@ int driver(int argc, char** argv) {
     */
 
     int val; 
+    int error_occured = 0; 
 
     if (optind >= argc) { // i.e. no input files provided
         printf("input is stdin\n");
+        exit(1); 
     } else {
         for (index = optind; index < argc; index++) { 
             val = compare(pattern, argv[index], context);
             if (val == -1) {
-                return val; 
+                error_occured = 1; 
             } 
             printf("found %d matches\n", val); 
         }
     }
 
-    return !(val && 1);   
+    if (error_occured) {
+        return -1; 
+    } 
+
+    return !val;   
 }
 
 int main(int argc, char **argv) { 
