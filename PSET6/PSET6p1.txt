@@ -1,10 +1,10 @@
 a) This approach is valid for user-level code, single-threaded, single CPU (STU). 
-    With only one CPU, the critical region operations can not be running on any other CPU and any other tasks are prevented from taking control of the singular CPU during the time of operation. Also, Single-threaded means there are no threads of control besides signal handlers. Also, if a spinlock was used, if the the kernel is inside the critical region when the interrupt arrives, the handler would loop forever. 
+    With only one CPU, the critical region operations can not be running on any other CPU and any other tasks are prevented from taking control of the singular CPU during the time of operation. Also, here single-threaded means in the event of a signal handler, there are no processes besides signal handlers. Also, if a spinlock was used, if the the kernel is inside the critical region when the interrupt arrives, the handler would loop forever. 
 b) This approach is not valid for user-level code, multi-threaded, single CPU (MTSPU). 
-    There are other threads of control besides signal handlers.
+    There are other processes besides the signal handler that can take control of the CPU.
 c) This approach is not valid for user-level code, multi-threaded, multi-CPU (MTMPU). 
-    There are other threads of control besides signal handlers. 
+    There are other processes besides the signal handler that can take control of the CPU. (Same reasoning as MTSPU)
 d) This approach is valid for kernel-level code, single CPU (STK). 
     With only one CPU, the critical region operations can not be running on any other CPU and any other tasks are prevented from taking control of the singular CPU during the time of operation. Also, if a spinlock was used, if the the kernel is inside the critical region when the interrupt arrives, the handler would loop forever. 
 e) This approach is not valid for kernel-level code, multi-CPU (MPK). 
-    With multiple CPUs, the critical region operations can be running on another CPU and disabling interrupts only affects the local CPU. As a result, any other tasks are not prevented from taking control.
+    With multiple CPUs, the critical region operations can be running on another CPU. Because disabling interrupts only affects the local CPU, other processes are not prevented from taking control.
