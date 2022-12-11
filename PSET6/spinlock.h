@@ -1,10 +1,10 @@
 #ifndef _SPINLOCK_H
 #define _SPINLOCK_H
 
-#include "tas.h"
 #include <unistd.h>
 #include <errno.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
