@@ -1,43 +1,38 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <setjmp.h>
-#include <sys/mman.h>
-#include <ctype.h> 
-#include <limits.h>
+#include "spinlock.h"
 
-int main() {
-// Read the pattern from file
-char *file = "test.txt";
-int file_fd; 
-int size;
-struct stat st;
-void *file_memory;
+int main(int argc, char **argv) {
+    int *memory;
+    int numChildren = atoi(argv[1]);
+    pid_t pids[numChildren];  
+    int numIterations = 100000;
+    struct spinlock l = {0,0,0};
 
+    if ((memory = (int*) mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0)) == MAP_FAILED) {
+        fprintf(stderr,"Error: could not mmap: %s\n", strerror(errno));
+        return -1;
+    }
 
-if ((file_fd = open(file, O_RDONLY)) == -1) {
-    fprintf(stderr,"Error: could not open %s for reading: %s\n", file, strerror(errno));
-    return -1; 
-}
+    for (int i = 0; i < numChildren; i++) {
+        if ((pids[i] = fork()) < 0) {
+            fprintf(stderr,"Error: fork failed %s\n", strerror(errno));
+            exit(1);
+        } else if (pids[i] == 0) {
+            for (int j = 0; j < numIterations; j++) {
+                spin_lock(&l);
+                (*memory)++;
+                spin_unlock(&l);
+            } 
+            exit(0); 
+        }
+    }
 
-// Get size of file
-if (fstat(file_fd, &st) == -1) {
-    fprintf(stderr,"Error: could not get size of %s for mmap: %s\n", file, strerror(errno));
-    return -1; 
-}
-size = st.st_size;
+    int status;
+    pid_t pid;
+    int num = numChildren; 
+    while (numChildren > 0) {
+        pid = wait(&status);
+        numChildren--; 
+    }
 
-if ((file_memory = mmap(NULL, size, PROT_READ,MAP_SHARED, file_fd, 0)) == MAP_FAILED) {
-    close(file_fd); 
-    fprintf(stderr,"Error: could not mmap %s: %s\n", file, strerror(errno));
-    return -1;
-}
-
-close(file_fd); 
+    printf("Expected: %d\nActual: %d\n", numIterations*num, *memory); 
 }
