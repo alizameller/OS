@@ -1,38 +1,54 @@
 #include "spinlock.h"
 
 int main(int argc, char **argv) {
-    int *memory;
     int numChildren = atoi(argv[1]);
-    pid_t pids[numChildren];  
-    int numIterations = 100000;
-    struct spinlock l = {0,0,0};
+    pid_t pids[numChildren];
 
-    if ((memory = (int*) mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0)) == MAP_FAILED) {
-        fprintf(stderr,"Error: could not mmap: %s\n", strerror(errno));
+    struct spinlock *l; 
+    if ((l = (struct spinlock*) mmap(NULL, sizeof(struct spinlock), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0)) == MAP_FAILED) {
+        fprintf(stderr,"Error: could not mmap struct spinlock: %s\n", strerror(errno));
+        return -1;
+    }
+    l->numOps = l->currentHolder = l->primitiveLock = 0;
+
+    int *spinlock_memory;
+    if ((spinlock_memory = (int*) mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0)) == MAP_FAILED) {
+        fprintf(stderr,"Error: could not mmap memory region: %s\n", strerror(errno));
         return -1;
     }
 
-    for (int i = 0; i < numChildren; i++) {
+    int *nolock_memory;
+    if ((nolock_memory = (int*) mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0)) == MAP_FAILED) {
+        fprintf(stderr,"Error: could not mmap memory region: %s\n", strerror(errno));
+        return -1;
+    }
+
+    int numIterations = 100000;
+    int i;
+    int j;
+    for (i = 0; i < numChildren; i++) {
         if ((pids[i] = fork()) < 0) {
             fprintf(stderr,"Error: fork failed %s\n", strerror(errno));
             exit(1);
         } else if (pids[i] == 0) {
-            for (int j = 0; j < numIterations; j++) {
-                spin_lock(&l);
-                (*memory)++;
-                spin_unlock(&l);
+            for (j = 0; j < numIterations; j++) {
+                // using spinlock
+                spin_lock(l);
+                (*spinlock_memory)++;
+                spin_unlock(l);
+
+                // not using spinlock 
+                (*nolock_memory)++; 
             } 
             exit(0); 
         }
     }
 
     int status;
-    pid_t pid;
-    int num = numChildren; 
-    while (numChildren > 0) {
-        pid = wait(&status);
-        numChildren--; 
+
+    for(i = 0; i < numChildren; i++) {
+        wait(&status); 
     }
 
-    printf("Expected: %d\nActual: %d\n", numIterations*num, *memory); 
+    printf("Expected:            %d\nResult (spinlocked): %d\nResult (unlocked):   %d\n", numIterations*numChildren, *spinlock_memory, *nolock_memory); 
 }
