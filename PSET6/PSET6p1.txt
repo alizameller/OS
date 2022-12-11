@@ -4,7 +4,9 @@ b) This approach is not valid for user-level code, multi-threaded, single CPU (M
     There are other processes besides the signal handler that share a memory region and can therefore take control of the CPU.
 c) This approach is not valid for user-level code, multi-threaded, multi-CPU (MTMPU). 
     With multiple CPUs, the critical region operations can be running on another CPU. Because disabling interrupts only affects the local CPU, other processes are not prevented from taking control. Moreover, with the multiple threads condition, there are other processes besides the signal handler that can take control of any of the CPUs.
-d) This approach is valid for kernel-level code, single CPU (SPK). 
-    With only one CPU, the critical region operations can not be running on any other CPU and any other tasks are prevented from taking control of the singular CPU during the time of operation. With a singular CPU, kernel-level code behaves like a single threaded UNIX process. So, for the same reasoning as STU, signal handling is a valid approach. 
+d) This approach is not valid for kernel-level code, single CPU (SPK). 
+    With only one CPU, the critical region operations can not be running on any other CPU and any other tasks are prevented from taking control of the singular CPU during the time of operation. With a singular CPU, kernel-level code behaves like a single threaded UNIX process. However, hardware interrupts are not blocked. 
 e) This approach is not valid for kernel-level code, multi-CPU (MPK). 
-    With multiple CPUs, the critical region operations can be running on another CPU. Because disabling interrupts only affects the local CPU, other processes are not prevented from taking control. With multiple CPUs, kernel-level code behaves like a multi-threaded UNIX process. So, for the same reasoning as MTMPU and MTSPU, signal handling is not a valid approach.
+    With multiple CPUs, the critical region operations can be running on another CPU. Because disabling interrupts only affects the local CPU, other processes are not prevented from taking control. With multiple CPUs, kernel-level code behaves like a multi-threaded UNIX process. So, for the same reasoning as MTMPU and MTSPU, signal handling is not a valid approach. Also, same as MPK, hardware interrupts are not blocked. 
+
+    - An interprocess interrupt is a signal that causes an interrupt

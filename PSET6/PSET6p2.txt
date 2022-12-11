@@ -1,3 +1,5 @@
 This code is vulnerable to a deadlock. Consider the following sequence: taskA locks R1 and then taskB locks R2. When taskA attempts to lock R2, it must wait until taskB unlocks R2, but in order for taskB to unlock R2, it must first lock R1. This, however, cannot happen until taskA unlocks R1, which can only occur after taskA locks R2, which brings us to the beginning of this infinite waiting loop. The system will not deadlock every time, but the code is definitely vulnerable to deadlocks under certain timings and sequences of locking/unlocking by taskA and taskB.  
 
 This code is not vulnerable to a livelock because the code does not continuously repeat. Rather, the mutex_trylock() function waits until the lock is unlocked to run, so it is impossible for taskA and taskB to enter a continuous loop of locking and unlocking R1 and R2. Because taskA and taskB cannot possibly return to a previous state without terminating, there is no possibility of a livelock. 
+
+This code allows both processes into the critical region, so it crashes. Neither deadlock nor livelock occur. 
