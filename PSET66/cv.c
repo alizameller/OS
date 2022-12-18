@@ -21,16 +21,17 @@ void cv_init(struct cv *cv) {
 * before returning to the caller
 */
 void cv_wait(struct cv *cv, struct spinlock *mutex) {
+    //spin_lock(&(cv->intern_lock));
     sigset_t mask, oldmask;
     sigfillset(&mask);
     sigprocmask(SIG_BLOCK, &mask, &oldmask);
     signal(SIGUSR1, handler);
 
-    //spin_lock(&(cv->intern_lock));
     cv->sleepers[cv->num_sleepers++] = getpid();
-    //spin_unlock(&(cv->intern_lock));
 
     spin_unlock(mutex);
+    //spin_unlock(&(cv->intern_lock));
+
     sigsuspend(&oldmask);
 
     sigprocmask(SIG_SETMASK,&oldmask,NULL);
@@ -47,11 +48,13 @@ void cv_wait(struct cv *cv, struct spinlock *mutex) {
 * Return value: the number of sleepers that were awoken.
 */
 int cv_broadcast(struct cv *cv) {
+    //spin_lock(&(cv->intern_lock));
     int temp = cv->num_sleepers;
     for (int i = 0; i < cv->num_sleepers; i++) {
         kill(cv->sleepers[i], SIGUSR1);
     }
     cv->num_sleepers = 0;
+    //spin_unlock(&(cv->intern_lock));
     return temp;
 }
 
@@ -59,9 +62,12 @@ int cv_broadcast(struct cv *cv) {
 * Your choice how to pick which one if more than one candidate
 */
 int cv_signal(struct cv *cv) {
+    //spin_lock(&(cv->intern_lock));
     if (!(cv->num_sleepers)) {
+        spin_unlock(&(cv->intern_lock));
         return 0;
     }
     kill(cv->sleepers[--cv->num_sleepers], SIGUSR1);
+    //spin_unlock(&(cv->intern_lock));
     return 1;
 }

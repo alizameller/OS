@@ -1,10 +1,12 @@
 #include "fifo.h"
 
+// Note: checking for correctness takes a long time for a large number of writers
+//       please allow to run for several minutes
+
 void test1(struct fifo* f) {
     pid_t pids[2];
     int numWrites = 65536;
-    int testArr[numWrites];
-    memset(testArr, 0, sizeof(testArr));
+    int* testArr = (int*)calloc(numWrites, sizeof(int));
     long temp;
 
     for (int i = 0; i < 2; i++) {
@@ -45,14 +47,17 @@ void test1(struct fifo* f) {
     for(int i = 0; i < 2; i++) {
         wait(&status); 
     }
+
+    free(testArr);
 }
 
 void test2 (struct fifo* f) {
-    int numChildren = 8;
+    int numChildren = 64;
     int numWrites = 65536;
-
-    int testMat[numChildren][numWrites];
-    memset(testMat, 0, sizeof(testMat));
+    int* testMat[numChildren];
+    for (int i = 0; i < numChildren; i++) {
+        testMat[i] = (int*)calloc(numWrites, sizeof(int));
+    }
 
     pid_t pids[numChildren];
 
@@ -64,7 +69,7 @@ void test2 (struct fifo* f) {
             for (int j = 0; j < numWrites; j++) {
                 fifo_wr(f, (i << 16) | j);
             } 
-            exit(0); 
+            exit(0);
         }
     }
 
@@ -105,6 +110,10 @@ void test2 (struct fifo* f) {
     for(int i = 0; i < numChildren; i++) {
         wait(&status); 
     }
+
+    for (int i = 0; i < numChildren; i++) {
+        free(testMat[i]);
+    }
 }
 
 int main() {
@@ -116,6 +125,7 @@ int main() {
 
     fifo_init(f);
     test1(f);
+
 
     fifo_init(f);
     test2(f);
