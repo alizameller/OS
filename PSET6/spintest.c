@@ -4,12 +4,12 @@ int main(int argc, char **argv) {
     int numChildren = atoi(argv[1]);
     pid_t pids[numChildren];
 
-    struct spinlock *l; 
+    struct spinlock *l;
     if ((l = (struct spinlock*) mmap(NULL, sizeof(struct spinlock), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0)) == MAP_FAILED) {
         fprintf(stderr,"Error: could not mmap struct spinlock: %s\n", strerror(errno));
         return -1;
     }
-    l->numOps = l->currentHolder = l->primitiveLock = 0;
+    spin_init(l);
 
     int *spinlock_memory;
     if ((spinlock_memory = (int*) mmap(NULL, sizeof(int), PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, -1, 0)) == MAP_FAILED) {

@@ -15,6 +15,8 @@ struct spinlock {
     int numOps;
 };
 
+void spin_init(struct spinlock *l);
+
 void spin_lock(struct spinlock *l);
 
 void spin_unlock(struct spinlock *l);

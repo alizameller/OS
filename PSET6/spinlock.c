@@ -1,6 +1,10 @@
 #include "tas.h"
 #include "spinlock.h"
 
+void spin_init(struct spinlock *l) {
+    l->numOps = l->currentHolder = l->primitiveLock = 0;
+}
+
 void spin_lock(struct spinlock *l) {
     while (tas(&(l->primitiveLock)) != 0); // while primitive lock is locked, try again
     l->currentHolder = getpid();
